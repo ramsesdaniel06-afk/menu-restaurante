@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#18181b">
+  <title>Administración del menú</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body class="adm">
+  <!-- Acceso -->
+  <section id="login" class="login" hidden>
+    <form id="login-form" class="login-card" autocomplete="on">
+      <h1>Administración</h1>
+      <p class="muted" id="demo-note" hidden>Modo demostración: entra con cualquier correo y contraseña.</p>
+      <label>Correo<input id="email" type="email" required autocomplete="username"></label>
+      <label>Contraseña<input id="password" type="password" required autocomplete="current-password"></label>
+      <p class="form-err" id="login-err" role="alert"></p>
+      <button class="btn btn-primary" type="submit">Entrar</button>
+      <a class="back" href="index.html">Volver al menú</a>
+    </form>
+  </section>
+
+  <!-- Panel -->
+  <div id="panel" hidden>
+    <header class="adm-top">
+      <div class="adm-top-in">
+        <strong class="adm-title">Administración</strong>
+        <nav class="tabs" role="tablist" aria-label="Secciones del panel">
+          <button role="tab" id="tab-dishes" aria-selected="true" aria-controls="v-dishes">Platillos</button>
+          <button role="tab" id="tab-stats" aria-selected="false" aria-controls="v-stats">Estadísticas</button>
+          <button role="tab" id="tab-qr" aria-selected="false" aria-controls="v-qr">Código QR</button>
+          <button role="tab" id="tab-settings" aria-selected="false" aria-controls="v-settings">Restaurante</button>
+        </nav>
+        <div class="adm-actions">
+          <a href="index.html" target="_blank" rel="noopener">Ver menú</a>
+          <button class="link" id="logout" type="button">Salir</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="adm-main">
+      <!-- Platillos -->
+      <section id="v-dishes" role="tabpanel" aria-labelledby="tab-dishes">
+        <div class="toolbar">
+          <input id="q" type="search" placeholder="Buscar platillo" aria-label="Buscar platillo">
+          <select id="fcat" aria-label="Filtrar por categoría"></select>
+          <button class="btn btn-primary" id="new-dish" type="button">Nuevo platillo</button>
+        </div>
+        <p class="hint" id="drag-hint">Arrastra el icono ⠿ de cada fila para cambiar el orden dentro de su categoría (con el teclado: enfócalo y usa ↑ ↓).</p>
+        <div id="dish-list" class="dlist"></div>
+      </section>
+
+      <!-- Estadísticas -->
+      <section id="v-stats" role="tabpanel" aria-labelledby="tab-stats" hidden>
+        <div class="toolbar">
+          <label class="inline">Periodo
+            <select id="stats-days"><option value="7">Últimos 7 días</option><option value="30" selected>Últimos 30 días</option><option value="90">Últimos 90 días</option></select>
+          </label>
+        </div>
+        <p class="hint" id="stats-demo" hidden>Modo demostración: las cifras son de ejemplo (más las visitas y clics que hagas tú en este navegador).</p>
+        <div id="stats-body"></div>
+      </section>
+
+      <!-- Código QR -->
+      <section id="v-qr" role="tabpanel" aria-labelledby="tab-qr" hidden>
+        <div class="panel-card">
+          <h2>Código QR del menú</h2>
+          <p class="hint">Imprímelo y ponlo en las mesas, la entrada o tus redes. Al escanearlo, el cliente abre el menú. Con códigos por mesa, el pedido por WhatsApp ya sale con el número de mesa.</p>
+          <div class="fgrid">
+            <label class="span">Dirección pública del menú
+              <input id="qr-url" type="url" placeholder="https://mi-restaurante.vercel.app/" inputmode="url">
+              <span class="hint" id="qr-url-hint"></span>
+            </label>
+            <label>Cantidad de mesas
+              <input id="qr-tables" type="number" min="0" max="200" value="0" inputmode="numeric">
+              <span class="hint">0 = un solo QR general.</span>
+            </label>
+            <label>Corrección de errores
+              <select id="qr-level"><option value="M">Media (recomendada)</option><option value="Q">Alta</option><option value="H">Máxima (si lo imprimes pequeño o con logo)</option></select>
+            </label>
+          </div>
+          <div class="qr-preview-wrap">
+            <div id="qr-preview" class="qr-preview" aria-live="polite"></div>
+            <div class="qr-actions">
+              <button class="btn btn-soft" id="qr-png" type="button">Descargar PNG</button>
+              <button class="btn btn-soft" id="qr-svg" type="button">Descargar SVG</button>
+              <button class="btn btn-primary" id="qr-print" type="button">Imprimir tarjetas</button>
+              <p class="hint" id="qr-msg"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Restaurante -->
+      <section id="v-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <form id="settings-form" class="panel-card">
+          <h2>Datos del restaurante</h2>
+          <div class="fgrid">
+            <label>Nombre<input name="name" required></label>
+            <label>Frase bajo el nombre<input name="tagline"></label>
+            <label>Dirección<input name="address"></label>
+            <label>Teléfono<input name="phone"></label>
+            <label class="span">Horario<input name="hours" placeholder="Martes a domingo · 11:00 a 22:00"></label>
+          </div>
+          <details class="en">
+            <summary>Versión en inglés (opcional)</summary>
+            <div class="fgrid">
+              <label>Frase bajo el nombre (EN)<input name="tagline_en"></label>
+              <label>Horario (EN)<input name="hours_en" placeholder="Tuesday to Sunday · 11:00 am to 10:00 pm"></label>
+            </div>
+            <p class="hint">Si lo dejas vacío, quien use el menú en inglés verá el texto en español.</p>
+          </details>
+
+          <h2>Pedidos y promoción</h2>
+          <div class="switches">
+            <label class="sw"><input type="checkbox" name="order_enabled"><span>Permitir pedidos por WhatsApp (requiere número de WhatsApp)</span></label>
+            <label class="sw"><input type="checkbox" name="promo_active"><span>Mostrar aviso de promoción arriba del menú</span></label>
+          </div>
+          <div class="fgrid">
+            <label>Texto de la promoción<input name="promo_text" maxlength="120" placeholder="2×1 en postres los jueves"></label>
+            <label>Texto de la promoción (EN)<input name="promo_text_en" maxlength="120" placeholder="2-for-1 desserts on Thursdays"></label>
+          </div>
+
+          <h2>Reseñas de Google</h2>
+          <label class="span">ID de lugar de Google (Place ID)
+            <input name="google_place_id" placeholder="ChIJ...">
+            <span class="hint">Con este ID los botones abren directo tus reseñas y el formulario para escribir una. Si lo dejas vacío, abren la ficha en Google Maps buscando por nombre y dirección. <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noopener">Cómo encontrarlo</a></span>
+          </label>
+
+          <h2>Contacto y redes sociales</h2>
+          <p class="hint">Cada red que llenes aparece como botón en el menú. Las que dejes vacías no se muestran. Puedes escribir el usuario (@mirestaurante) o el enlace completo.</p>
+          <div class="fgrid">
+            <label>WhatsApp
+              <input name="whatsapp" inputmode="tel" placeholder="584141234567">
+              <span class="hint">Con código de país y sin signos. Si empieza por 0, se toma como Venezuela (+58). Activa también el botón flotante y los pedidos.</span>
+            </label>
+            <label>Mensaje inicial de WhatsApp
+              <input name="whatsapp_message" maxlength="140" placeholder="Hola, quisiera hacer una reserva.">
+              <span class="hint">Opcional. Aparece escrito cuando el cliente abre el chat.</span>
+            </label>
+            <label>Instagram<input name="instagram" placeholder="@mirestaurante"></label>
+            <label>Facebook<input name="facebook" placeholder="mirestaurante o enlace"></label>
+            <label>TikTok<input name="tiktok" placeholder="@mirestaurante"></label>
+            <label>X (Twitter)<input name="x_twitter" placeholder="@mirestaurante"></label>
+            <label>YouTube<input name="youtube" placeholder="@mirestaurante o enlace"></label>
+            <label>Sitio web<input name="website" placeholder="www.mirestaurante.com"></label>
+          </div>
+
+          <h2>Dirección pública del menú</h2>
+          <label class="span">Enlace del menú
+            <input name="site_url" type="url" placeholder="https://mi-restaurante.vercel.app/" inputmode="url">
+            <span class="hint">Se usa para los códigos QR. Si lo dejas vacío, se toma la dirección desde la que estás entrando.</span>
+          </label>
+
+          <h2>Precios en bolívares</h2>
+          <div class="fgrid">
+            <label>Tasa BCV (Bs. por $1)
+              <input name="bcv_rate" type="number" step="0.01" min="0" inputmode="decimal">
+              <span class="hint" id="rate-hint"></span>
+            </label>
+            <div class="rate-btn"><button class="btn btn-soft" type="button" id="fetch-rate">Traer tasa BCV</button></div>
+          </div>
+          <div class="form-foot"><button class="btn btn-primary" type="submit">Guardar cambios</button></div>
+        </form>
+
+        <section class="panel-card">
+          <h2>Categorías del menú</h2>
+          <p class="muted">Arrastra ⠿ para cambiar el orden en que aparecen en el menú. El segundo campo es el nombre en inglés (opcional).</p>
+          <div id="cat-list" class="catlist"></div>
+          <form id="cat-add" class="cat-add">
+            <input name="name" placeholder="Nueva categoría" aria-label="Nombre de la nueva categoría" required>
+            <input name="name_en" placeholder="Nombre en inglés (opcional)" aria-label="Nombre en inglés de la nueva categoría">
+            <button class="btn btn-soft" type="submit">Agregar categoría</button>
+          </form>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <!-- Editor de platillo -->
+  <dialog id="dish-dlg" class="dlg" aria-labelledby="dlg-title">
+    <form id="dish-form" method="dialog">
+      <header class="dlg-head">
+        <h2 id="dlg-title">Platillo</h2>
+        <button type="button" class="x" id="dlg-close" aria-label="Cerrar">×</button>
+      </header>
+      <div class="dlg-body">
+        <div class="fgrid">
+          <label class="span">Nombre<input name="name" required maxlength="80"></label>
+          <label>Categoría<select name="category_id" required></select></label>
+          <label>Precio en dólares<input name="price_usd" type="number" step="0.01" min="0" required inputmode="decimal"></label>
+          <label>Precio de oferta (opcional)
+            <input name="sale_price_usd" type="number" step="0.01" min="0" inputmode="decimal">
+            <span class="hint">Debe ser menor que el precio normal. El normal se muestra tachado.</span>
+          </label>
+          <label class="span">Descripción<textarea name="description" rows="3" maxlength="300"></textarea></label>
+        </div>
+        <details class="en">
+          <summary>Versión en inglés (opcional)</summary>
+          <div class="fgrid">
+            <label class="span">Name (EN)<input name="name_en" maxlength="80"></label>
+            <label class="span">Description (EN)<textarea name="description_en" rows="3" maxlength="300"></textarea></label>
+          </div>
+        </details>
+
+        <fieldset class="tagbox">
+          <legend>Etiquetas y alérgenos</legend>
+          <div id="tag-box" class="tagrow"></div>
+        </fieldset>
+
+        <div class="switches">
+          <label class="sw"><input type="checkbox" name="active"><span>Visible en el menú</span></label>
+          <label class="sw"><input type="checkbox" name="featured"><span>Recomendación de la casa</span></label>
+          <label class="sw"><input type="checkbox" name="daily"><span>Platillo del día</span></label>
+          <label class="sw"><input type="checkbox" name="sold_out"><span>Agotado</span></label>
+        </div>
+
+        <div class="photos-head">
+          <h3>Fotos</h3>
+          <label class="btn btn-soft file-btn">Agregar fotos<input id="photo-input" type="file" accept="image/*" multiple hidden></label>
+        </div>
+        <p class="hint">La primera foto es la portada. Usa las flechas para cambiar el orden.</p>
+        <ul id="photo-grid" class="pgrid"></ul>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" class="btn btn-danger-ghost" id="dish-del">Eliminar platillo</button>
+        <span class="grow"></span>
+        <button type="button" class="btn btn-soft" id="dlg-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="dish-save">Guardar platillo</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Hoja de impresión de QR -->
+  <div id="qr-sheet" class="qr-sheet" aria-hidden="true"></div>
+
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>

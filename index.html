@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!--SEO-->
+  <title>Menú</title>
+  <meta name="description" content="Menú del restaurante con fotos, precios y reseñas.">
+  <meta name="theme-color" content="#18181b">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Young+Serif&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#menu" data-i18n="skip">Saltar al menú</a>
+
+  <div id="promo" class="promo" hidden>
+    <p id="promo-text"></p>
+    <button id="promo-x" type="button" class="promo-x" aria-label="Cerrar aviso">×</button>
+  </div>
+  <div id="offline" class="offline" role="status" hidden></div>
+
+  <header class="hero">
+    <nav class="hero-nav" aria-label="Secciones">
+      <a href="#menu" data-i18n="nav_menu">Menú</a>
+      <a href="#resenas" data-i18n="nav_reviews">Reseñas</a>
+      <button id="lang" type="button" class="lang" aria-label="Cambiar idioma">EN</button>
+    </nav>
+    <div class="hero-body">
+      <h1 id="r-name">&nbsp;</h1>
+      <p class="tagline" id="r-tagline"></p>
+      <p class="hours" id="r-hours"></p>
+      <p class="table-chip" id="table-chip" hidden></p>
+    </div>
+  </header>
+
+  <main>
+    <section id="dia" class="dia" hidden aria-labelledby="dia-t">
+      <div class="wrap">
+        <h2 id="dia-t" data-i18n="daily_dish">Platillo del día</h2>
+        <div id="dia-card"></div>
+      </div>
+    </section>
+
+    <section id="casa" class="casa" hidden aria-labelledby="casa-t">
+      <div class="wrap">
+        <h2 id="casa-t" data-i18n="house_picks">Recomendaciones de la casa</h2>
+        <div class="rail" id="rail"></div>
+      </div>
+    </section>
+
+    <section id="menu" class="menu" aria-labelledby="menu-t">
+      <div class="wrap">
+        <h2 id="menu-t" class="sr" data-i18n="nav_menu">Menú</h2>
+        <div class="finder">
+          <label class="search">
+            <span class="sr" data-i18n="search">Buscar platillo</span>
+            <input id="q" type="search" autocomplete="off" data-i18n-ph="search_ph" placeholder="Buscar por nombre o ingrediente">
+          </label>
+          <button id="diet-btn" type="button" class="chip" aria-expanded="false" aria-controls="diet" data-i18n="diet">Dieta y alérgenos</button>
+        </div>
+        <div id="diet" class="diet" role="group" hidden></div>
+      </div>
+      <div class="bar">
+        <div class="wrap bar-in">
+          <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
+          <label class="sort">
+            <span data-i18n="sort">Ordenar</span>
+            <select id="sort">
+              <option value="menu" data-i18n="sort_menu">Orden del menú</option>
+              <option value="asc" data-i18n="sort_asc">Precio: de menor a mayor</option>
+              <option value="desc" data-i18n="sort_desc">Precio: de mayor a menor</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="wrap">
+        <div id="list" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="resenas" class="resenas" aria-labelledby="res-t">
+      <div class="wrap res-in">
+        <div>
+          <h2 id="res-t" data-i18n="res_title">¿Qué tal estuvo todo?</h2>
+          <p data-i18n="res_text">Lee lo que dicen nuestros comensales en Google o cuéntanos tu experiencia. Tu reseña nos ayuda a mejorar.</p>
+        </div>
+        <div class="res-actions">
+          <a class="btn btn-accent" id="g-write" target="_blank" rel="noopener" data-i18n="write_review">Dejar una reseña</a>
+          <a class="btn btn-ghost" id="g-read" target="_blank" rel="noopener" data-i18n="read_reviews">Leer reseñas en Google</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="contacto" class="contacto" aria-labelledby="con-t" hidden>
+      <div class="wrap con-in">
+        <h2 id="con-t" data-i18n="contact_title">Escríbenos y síguenos</h2>
+        <div class="soc" id="soc"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-in">
+      <div>
+        <strong id="f-name"></strong>
+        <p id="f-address"></p>
+      </div>
+      <div>
+        <p id="f-phone"></p>
+        <p id="f-rate" class="muted"></p>
+        <p id="f-demo" class="muted" hidden></p>
+      </div>
+      <a class="admin-link" href="admin.html" data-i18n="admin">Administración</a>
+    </div>
+  </footer>
+
+  <!-- Botones flotantes -->
+  <a id="wa-float" class="wa-float" target="_blank" rel="noopener" hidden aria-label="WhatsApp">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20.5l1.7-5.2A8.5 8.5 0 1 1 21 11.5Z"/></svg>
+    <span data-i18n="message_float">Escríbenos</span>
+  </a>
+  <button id="cart-bar" class="cart-bar" type="button" hidden aria-haspopup="dialog">
+    <span class="cart-count" id="cart-count">0</span>
+    <span class="cart-label" data-i18n="view_order">Ver pedido</span>
+    <span class="cart-total" id="cart-total"></span>
+  </button>
+
+  <!-- Pedido -->
+  <dialog id="cart-dlg" class="cart-dlg" aria-labelledby="cart-t">
+    <div class="cart-head">
+      <h2 id="cart-t" data-i18n="order_title">Tu pedido</h2>
+      <button type="button" class="x" id="cart-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="cart-body">
+      <div id="cart-items"></div>
+      <div id="cart-form" class="cart-form">
+        <label>
+          <span data-i18n="your_name">Tu nombre</span>
+          <input id="o-name" autocomplete="name" maxlength="60">
+        </label>
+        <fieldset class="seg">
+          <legend data-i18n="order_type">¿Cómo lo quieres?</legend>
+          <label><input type="radio" name="otype" value="dine_in" checked><span data-i18n="dine_in">Comer aquí</span></label>
+          <label><input type="radio" name="otype" value="takeaway"><span data-i18n="takeaway">Para llevar</span></label>
+          <label><input type="radio" name="otype" value="delivery"><span data-i18n="delivery">A domicilio</span></label>
+        </fieldset>
+        <label id="o-loc-wrap">
+          <span id="o-loc-label" data-i18n="table">Mesa</span>
+          <input id="o-loc" maxlength="120">
+        </label>
+        <label>
+          <span data-i18n="notes">Notas para la cocina</span>
+          <textarea id="o-notes" rows="2" maxlength="240" data-i18n-ph="notes_ph" placeholder="Sin picante, sin cebolla, alergias…"></textarea>
+        </label>
+      </div>
+    </div>
+    <div class="cart-foot" id="cart-foot">
+      <div class="cart-sum"><span data-i18n="total">Total</span><span id="cart-sum-total"></span></div>
+      <a id="o-send" class="btn btn-accent btn-block" target="_blank" rel="noopener" data-i18n="send_wa">Enviar pedido por WhatsApp</a>
+      <p class="muted" data-i18n="order_help">Se abre WhatsApp con tu pedido listo. El restaurante lo confirma por ahí.</p>
+      <button type="button" class="link-btn" id="cart-clear" data-i18n="clear_order">Vaciar pedido</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="js/menu.js"></script>
+</body>
+</html>
