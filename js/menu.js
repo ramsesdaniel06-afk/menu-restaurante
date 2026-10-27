@@ -71,7 +71,7 @@ function renderCtl(el) {
   const id = el.dataset.dish, d = byId.get(id);
   el.replaceChildren();
   if (!d || !orderingOn() || d.sold_out) return;
-  el.append((cart.get(id) || 0) > 0 ? stepper(id) : h('button', { type: 'button', class: 'btn-add', onclick: () => setQty(id, 1) }, '+ ' + t('add')));
+  el.append((cart.get(id) || 0) > 0 ? stepper(id) : h('button', { type: 'button', class: 'btn-add', onclick: () => setQty(id, 1) }, t('add')));
 }
 
 function card(d, { rail = false, daily = false } = {}) {
@@ -83,19 +83,18 @@ function card(d, { rail = false, daily = false } = {}) {
   if (sale) badges.push(h('span', { class: 'badge badge-offer' }, t('badge_offer')));
   const photo = carousel(d);
   if (d.sold_out) photo.append(h('span', { class: 'soldout' }, t('badge_soldout')));
-  const el = h('article', { class: 'dish' + (rail ? ' dish-rail' : '') + (daily ? ' dish-daily' : '') + (d.sold_out ? ' is-soldout' : ''), 'data-dish': d.id },
+  const el = h('article', { class: 'dish' + (daily ? ' dish-daily' : '') + (d.sold_out ? ' is-soldout' : ''), 'data-dish': d.id },
     photo,
     badges.length ? h('div', { class: 'badges' }, badges) : null,
     h('div', { class: 'dish-body' },
-      h('div', { class: 'dish-head' },
-        h('h3', { text: nm }),
-        h('p', { class: 'price' },
-          sale ? h('s', { text: fmtUsd(d.price_usd) }) : null,
-          h('b', { text: fmtUsd(price) }),
-          bs ? h('small', { text: bs }) : null)),
+      h('h3', { text: nm }),
+      h('p', { class: 'price' },
+        h('b', { text: fmtUsd(price) }),
+        sale ? h('s', { text: fmtUsd(d.price_usd) }) : null,
+        bs ? h('small', { text: bs }) : null),
       desc ? h('p', { class: 'desc', text: desc }) : null,
-      d.tags.length ? h('ul', { class: 'tags' }, TAGS.filter(x => d.tags.includes(x)).map(x => h('li', { class: 'tag' + (ALLERGEN_TAGS.includes(x) ? ' tag-warn' : '') }, t('t_' + x)))) : null,
-      h('div', { class: 'cart-ctl', 'data-dish': d.id })));
+      d.tags.length ? h('ul', { class: 'tags' }, TAGS.filter(x => d.tags.includes(x)).map(x => h('li', { class: 'tag' + (ALLERGEN_TAGS.includes(x) ? ' tag-warn' : '') }, t('t_' + x)))) : null),
+    h('div', { class: 'cart-ctl', 'data-dish': d.id }));
   renderCtl(el.querySelector('.cart-ctl'));
   if (io) io.observe(el);
   return el;
@@ -128,9 +127,9 @@ function renderDiet() {
   $('diet-btn').hidden = !opts.length;
   if (!opts.length) { box.hidden = true; return; }
   for (const [k, label] of opts) {
-    box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(state.filters.has(k)), onclick: () => { state.filters.has(k) ? state.filters.delete(k) : state.filters.add(k); renderDiet(); renderList(); } }, label));
+    box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(state.filters.has(k)), onclick: () => { state.filters.has(k) ? state.filters.delete(k) : state.filters.add(k); renderDiet(); renderList(); renderHighlights(); } }, label));
   }
-  if (state.filters.size) box.append(h('button', { type: 'button', class: 'link-btn', onclick: () => { state.filters.clear(); renderDiet(); renderList(); } }, t('clear')));
+  if (state.filters.size) box.append(h('button', { type: 'button', class: 'link-btn', onclick: () => { state.filters.clear(); renderDiet(); renderList(); renderHighlights(); } }, t('clear')));
   $('diet-btn').setAttribute('aria-pressed', String(state.filters.size > 0));
 }
 
@@ -149,7 +148,7 @@ function renderList() {
     list.append(h('div', { class: 'empty' },
       h('p', { text: filtering() ? t('no_results') : any ? t('empty_cat') : t('preparing') }),
       filtering() ? h('p', { class: 'muted', text: t('no_results_hint') }) : null,
-      filtering() ? h('button', { type: 'button', class: 'btn btn-ghost-dark', onclick: () => { state.q = ''; $('q').value = ''; state.filters.clear(); renderDiet(); renderList(); } }, t('clear')) : null));
+      filtering() ? h('button', { type: 'button', class: 'btn btn-ghost-dark', onclick: () => { state.q = ''; $('q').value = ''; state.filters.clear(); renderDiet(); renderList(); renderHighlights(); } }, t('clear')) : null));
     return;
   }
   const grid = arr => h('div', { class: 'grid' }, arr.map(d => card(d)));
@@ -167,10 +166,11 @@ function renderList() {
 }
 
 function renderHighlights() {
-  const daily = state.dishes.find(d => d.active && d.daily);
+  const hide = filtering();
+  const daily = hide ? null : state.dishes.find(d => d.active && d.daily);
   $('dia').hidden = !daily;
   $('dia-card').replaceChildren(...(daily ? [card(daily, { daily: true })] : []));
-  const featured = state.dishes.filter(d => d.active && d.featured);
+  const featured = hide ? [] : state.dishes.filter(d => d.active && d.featured);
   $('casa').hidden = !featured.length;
   $('rail').replaceChildren(...featured.map(d => card(d, { rail: true })));
 }
@@ -196,6 +196,8 @@ function money(usd) {
 function renderCartBar() {
   const n = cartCount(), on = orderingOn() && n > 0;
   $('cart-bar').hidden = !on;
+  $('cart-btn').hidden = !orderingOn();
+  $('cart-badge').hidden = n === 0; $('cart-badge').textContent = String(n);
   document.body.classList.toggle('has-cart', on);
   $('cart-count').textContent = String(n);
   $('cart-total').textContent = fmtUsd(cartTotal());
@@ -270,7 +272,10 @@ function renderHero() {
   const s = state.settings;
   document.title = `${s.name} · ${t('nav_menu')}`;
   $('r-name').textContent = s.name;
-  $('r-tagline').textContent = L(s, 'tagline'); $('r-hours').textContent = L(s, 'hours');
+  $('brand-mark').textContent = String(s.name || 'M').trim().slice(0, 1).toUpperCase();
+  const hrs = L(s, 'hours');
+  $('r-tagline').textContent = L(s, 'tagline');
+  $('r-hours').textContent = hrs; $('hoursbar').hidden = !hrs;
   $('table-chip').hidden = !state.mesa; $('table-chip').textContent = state.mesa ? t('table_banner', { n: state.mesa }) : '';
   $('lang').textContent = getLang() === 'es' ? 'EN' : 'ES';
 }
@@ -286,6 +291,11 @@ function applyStatic() {
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = t(el.dataset.i18nPh); });
   $('lang').setAttribute('aria-label', t('lang_toggle'));
+  $('menu-btn').setAttribute('aria-label', t('open_menu'));
+  $('search-btn').setAttribute('aria-label', t('search_open'));
+  $('cart-btn').setAttribute('aria-label', t('cart_open'));
+  $('menu-close').setAttribute('aria-label', t('close'));
+  $('drawer-t').textContent = state.settings.name || t('nav_menu');
   $('promo-x').setAttribute('aria-label', t('dismiss'));
   $('cart-close').setAttribute('aria-label', t('close'));
   $('chips').setAttribute('aria-label', t('cats'));
@@ -319,9 +329,22 @@ async function init() {
 
   // eventos
   $('lang').addEventListener('click', () => { setLang(getLang() === 'es' ? 'en' : 'es'); renderAll(); });
+  const drawer = $('menu-dlg');
+  $('menu-btn').addEventListener('click', () => drawer.showModal());
+  $('menu-close').addEventListener('click', () => drawer.close());
+  drawer.addEventListener('click', e => { if (e.target === drawer || e.target.closest('.drawer-nav a')) drawer.close(); });
+  $('search-btn').addEventListener('click', () => {
+    const open = $('finder').hidden; $('finder').hidden = !open; $('search-btn').setAttribute('aria-expanded', String(open));
+    if (open) $('q').focus();
+  });
+  $('cart-btn').addEventListener('click', openCart);
+  $('see-all').addEventListener('click', () => { state.cat = 'all'; state.sort = 'menu'; $('sort').value = 'menu'; renderChips(); renderList(); });
   $('promo-x').addEventListener('click', () => { session.set('rm_promo_x', L(state.settings, 'promo_text').trim()); renderPromo(); });
   $('sort').addEventListener('change', e => { state.sort = e.target.value; renderList(); });
-  $('q').addEventListener('input', e => { state.q = e.target.value; renderList(); });
+  $('q').addEventListener('input', e => {
+    state.q = e.target.value; renderList(); renderHighlights();
+    if (state.q.trim() && $('menu').getBoundingClientRect().top > 160) $('menu').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth' });
+  });
   $('diet-btn').addEventListener('click', () => { const open = $('diet').hidden; $('diet').hidden = !open; $('diet-btn').setAttribute('aria-expanded', String(open)); });
   $('cart-bar').addEventListener('click', openCart);
   $('cart-close').addEventListener('click', () => $('cart-dlg').close());

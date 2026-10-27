@@ -1,5 +1,5 @@
 // Service worker: el menú abre rápido y muestra lo último visto si no hay internet.
-const VER = 'menu-v2';
+const VER = 'menu-v3';
 const SHELL = ['./', 'index.html', 'css/styles.css', 'js/menu.js', 'js/data.js', 'js/ui.js', 'js/i18n.js', 'js/config.js', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

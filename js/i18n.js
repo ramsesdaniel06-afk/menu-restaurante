@@ -4,7 +4,7 @@ const KEY = 'rm_lang';
 
 const D = {
   es: {
-    nav_menu: 'Menú', nav_reviews: 'Reseñas', skip: 'Saltar al menú',
+    nav_menu: 'Menú', nav_reviews: 'Reseñas', nav_contact: 'Contacto', see_all: 'Ver todo', open_menu: 'Abrir menú', search_open: 'Buscar', cart_open: 'Ver pedido', skip: 'Saltar al menú',
     house_picks: 'Recomendaciones de la casa', daily_dish: 'Platillo del día',
     all: 'Todo', sort: 'Ordenar', sort_menu: 'Orden del menú', sort_asc: 'Precio: de menor a mayor', sort_desc: 'Precio: de mayor a menor',
     search: 'Buscar platillo', search_ph: 'Buscar por nombre o ingrediente', clear: 'Limpiar',
@@ -32,7 +32,7 @@ const D = {
     order_msg_hello: 'Hola, quiero hacer este pedido:', dismiss: 'Cerrar aviso', foto_alt: 'foto',
   },
   en: {
-    nav_menu: 'Menu', nav_reviews: 'Reviews', skip: 'Skip to menu',
+    nav_menu: 'Menu', nav_reviews: 'Reviews', nav_contact: 'Contact', see_all: 'See all', open_menu: 'Open menu', search_open: 'Search', cart_open: 'View order', skip: 'Skip to menu',
     house_picks: 'House recommendations', daily_dish: 'Dish of the day',
     all: 'All', sort: 'Sort', sort_menu: 'Menu order', sort_asc: 'Price: low to high', sort_desc: 'Price: high to low',
     search: 'Search dishes', search_ph: 'Search by name or ingredient', clear: 'Clear',
