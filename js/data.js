@@ -21,14 +21,14 @@ export const unitPrice = d => (d.sale_price_usd != null && Number(d.sale_price_u
 export const onSale = d => unitPrice(d) < Number(d.price_usd);
 
 // Reduce y comprime la foto en el navegador antes de subirla.
-export async function compressImage(file, max = 1400, quality = 0.82) {
+export async function compressImage(file, max = 1400, quality = 0.82, mime = 'image/jpeg') {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
   const canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
   canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
-  return new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la imagen')), 'image/jpeg', quality));
+  return new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('No se pudo procesar la imagen')), mime, quality));
 }
 const blobToDataUrl = b => new Promise(r => { const f = new FileReader(); f.onload = () => r(f.result); f.readAsDataURL(b); });
 
@@ -105,6 +105,29 @@ export function resetDemo() { localStorage.removeItem(LS); }
 export async function getSettings() {
   if (isDemo) return dLoad().settings;
   return must(await (await sb()).from('settings').select('*').eq('id', 1).single());
+}
+/** Sube el logo (PNG, conserva transparencia) y lo guarda en los datos del restaurante. */
+export async function setLogo(file) {
+  if (isDemo) {
+    const url = await blobToDataUrl(await compressImage(file, 256, 0.9, 'image/png'));
+    return saveSettings({ logo_url: url, logo_path: '' });
+  }
+  const c = await sb();
+  const blob = await compressImage(file, 512, 0.92, 'image/png');
+  const path = `branding/logo-${uid()}.png`;
+  const up = await c.storage.from(BUCKET).upload(path, blob, { contentType: 'image/png', cacheControl: '31536000' });
+  if (up.error) throw new Error('No se pudo subir el logo: ' + up.error.message);
+  const old = (await getSettings()).logo_path;
+  const s = await saveSettings({ logo_url: c.storage.from(BUCKET).getPublicUrl(path).data.publicUrl, logo_path: path });
+  if (old) await c.storage.from(BUCKET).remove([old]);
+  return s;
+}
+export async function removeLogo() {
+  if (isDemo) return saveSettings({ logo_url: '', logo_path: '' });
+  const old = (await getSettings()).logo_path;
+  const s = await saveSettings({ logo_url: '', logo_path: '' });
+  if (old) await (await sb()).storage.from(BUCKET).remove([old]);
+  return s;
 }
 export async function saveSettings(patch) {
   if (isDemo) { const d = dLoad(); d.settings = { ...d.settings, ...patch }; dSave(d); return d.settings; }

@@ -34,10 +34,13 @@ function priceIn(usd, cur = curNow()) {
 }
 function renderCur() {
   const opts = curAvail(), box = $('cur-btns'); box.replaceChildren();
-  $('cur').hidden = opts.length < 2;
+  $('cur-toggle').hidden = opts.length < 2;
+  if (opts.length < 2) $('cur').hidden = true;
+  $('cur-now').textContent = { usd: '$', bs: 'Bs.', eur: '€' }[curNow()];
+  $('cur-toggle').setAttribute('aria-label', t('see_prices'));
   const label = { usd: '$ ' + t('cur_usd'), bs: 'Bs. ' + t('cur_bs'), eur: '€ ' + t('cur_eur') };
   for (const k of opts) box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(curNow() === k), onclick: () => {
-    state.cur = k; store.set('rm_cur', k); renderCur(); renderHighlights(); renderList(); renderCartBar(); if ($('cart-dlg').open) renderCartDialog();
+    state.cur = k; store.set('rm_cur', k); $('cur').hidden = true; $('cur-toggle').setAttribute('aria-expanded', 'false'); renderCur(); renderHighlights(); renderList(); renderCartBar(); if ($('cart-dlg').open) renderCartDialog();
   } }, label[k]));
 }
 
@@ -144,27 +147,24 @@ function matches(d) {
 }
 const filtering = () => state.q.trim() !== '' || state.filters.size > 0;
 
-function renderDiet() {
-  const box = $('diet'); box.replaceChildren();
+function renderChips() {
+  const chips = $('chips'); chips.replaceChildren();
   const active = state.dishes.filter(d => d.active);
+  const used = new Set(active.map(d => d.category_id));
+  const mk = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(state.cat === id), onclick: () => { state.cat = id; renderChips(); renderList(); } }, label);
+  chips.append(mk('all', t('all')), ...state.cats.filter(c => used.has(c.id)).map(c => mk(c.id, L(c, 'name'))));
+  // Dieta y alérgenos: más categorías en la misma fila; se pueden combinar entre sí y con la categoría.
   const present = new Set(active.flatMap(d => d.tags));
   const opts = [];
   for (const k of ['vegetariano', 'vegano', 'sin_gluten', 'sin_lactosa', 'picante']) if (present.has(k)) opts.push([k, t('t_' + k)]);
   for (const k of ALLERGEN_TAGS) if (present.has(k)) opts.push([k, t('f_' + k)]);
-  $('diet-btn').hidden = !opts.length;
-  if (!opts.length) { box.hidden = true; return; }
+  if (opts.length) chips.append(h('span', { class: 'chip-sep', 'aria-hidden': 'true' }));
   for (const [k, label] of opts) {
-    box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(state.filters.has(k)), onclick: () => { state.filters.has(k) ? state.filters.delete(k) : state.filters.add(k); renderDiet(); renderList(); renderHighlights(); } }, label));
+    chips.append(h('button', { type: 'button', class: 'chip chip-diet', 'aria-pressed': String(state.filters.has(k)), onclick: () => {
+      state.filters.has(k) ? state.filters.delete(k) : state.filters.add(k);
+      renderChips(); renderList(); renderHighlights();
+    } }, label));
   }
-  if (state.filters.size) box.append(h('button', { type: 'button', class: 'link-btn', onclick: () => { state.filters.clear(); renderDiet(); renderList(); renderHighlights(); } }, t('clear')));
-  $('diet-btn').setAttribute('aria-pressed', String(state.filters.size > 0));
-}
-
-function renderChips() {
-  const chips = $('chips'); chips.replaceChildren();
-  const used = new Set(state.dishes.filter(d => d.active).map(d => d.category_id));
-  const mk = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(state.cat === id), onclick: () => { state.cat = id; renderChips(); renderList(); } }, label);
-  chips.append(mk('all', t('all')), ...state.cats.filter(c => used.has(c.id)).map(c => mk(c.id, L(c, 'name'))));
 }
 
 function renderList() {
@@ -175,7 +175,7 @@ function renderList() {
     list.append(h('div', { class: 'empty' },
       h('p', { text: filtering() ? t('no_results') : any ? t('empty_cat') : t('preparing') }),
       filtering() ? h('p', { class: 'muted', text: t('no_results_hint') }) : null,
-      filtering() ? h('button', { type: 'button', class: 'btn btn-ghost-dark', onclick: () => { state.q = ''; $('q').value = ''; state.filters.clear(); renderDiet(); renderList(); renderHighlights(); } }, t('clear')) : null));
+      filtering() ? h('button', { type: 'button', class: 'btn btn-ghost-dark', onclick: () => { state.q = ''; $('q').value = ''; state.filters.clear(); renderChips(); renderList(); renderHighlights(); } }, t('clear')) : null));
     return;
   }
   const grid = arr => h('div', { class: 'grid' }, arr.map(d => card(d)));
@@ -305,7 +305,9 @@ function renderHero() {
   const s = state.settings;
   document.title = `${s.name} · ${t('nav_menu')}`;
   $('r-name').textContent = s.name;
-  $('brand-mark').textContent = String(s.name || 'M').trim().slice(0, 1).toUpperCase();
+  const mark = $('brand-mark');
+  if (s.logo_url) { mark.className = 'brand-mark has-logo'; mark.replaceChildren(h('img', { src: s.logo_url, alt: '' })); }
+  else { mark.className = 'brand-mark'; mark.textContent = String(s.name || 'M').trim().slice(0, 1).toUpperCase(); }
   const hrs = L(s, 'hours');
   $('r-tagline').textContent = L(s, 'tagline');
   $('r-hours').textContent = hrs; $('hoursbar').hidden = !hrs;
@@ -332,13 +334,12 @@ function applyStatic() {
   $('promo-x').setAttribute('aria-label', t('dismiss'));
   $('cart-close').setAttribute('aria-label', t('close'));
   $('chips').setAttribute('aria-label', t('cats'));
-  $('diet').setAttribute('aria-label', t('diet'));
   $('wa-float').setAttribute('aria-label', 'WhatsApp');
   $('offline').hidden = !state.offline; $('offline').textContent = t('offline');
 }
 
 function renderAll() {
-  applyStatic(); renderCur(); renderHero(); renderPromo(); renderHighlights(); renderDiet(); renderChips(); renderList();
+  applyStatic(); renderCur(); renderHero(); renderPromo(); renderHighlights(); renderChips(); renderList();
   renderContact(); renderFooter(); renderCartBar();
   const g = googleLinks(state.settings); $('g-write').href = g.write; $('g-read').href = g.reviews;
   if ($('cart-dlg').open) renderCartDialog();
@@ -376,7 +377,7 @@ async function init() {
     state.q = e.target.value; renderList(); renderHighlights();
     if (state.q.trim() && $('menu').getBoundingClientRect().top > 160) $('menu').scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth' });
   });
-  $('diet-btn').addEventListener('click', () => { const open = $('diet').hidden; $('diet').hidden = !open; $('diet-btn').setAttribute('aria-expanded', String(open)); });
+  $('cur-toggle').addEventListener('click', () => { const open = $('cur').hidden; $('cur').hidden = !open; $('cur-toggle').setAttribute('aria-expanded', String(open)); });
   $('cart-bar').addEventListener('click', openCart);
   $('cart-close').addEventListener('click', () => $('cart-dlg').close());
   $('cart-dlg').addEventListener('click', e => { if (e.target === $('cart-dlg')) $('cart-dlg').close(); });

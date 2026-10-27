@@ -302,7 +302,28 @@ function printCards() {
 /* ---------- Restaurante ---------- */
 const sf = $('settings-form');
 const TEXT_FIELDS = ['name', 'tagline', 'tagline_en', 'address', 'phone', 'hours', 'hours_en', 'promo_text', 'promo_text_en', 'google_place_id', 'whatsapp', 'whatsapp_message', 'instagram', 'facebook', 'tiktok', 'x_twitter', 'youtube', 'website', 'site_url'];
+function renderLogo() {
+  const url = S.settings.logo_url, box = $('logo-preview');
+  box.replaceChildren(url ? h('img', { src: url, alt: '' }) : h('span', { text: String(S.settings.name || 'M').trim().slice(0, 1).toUpperCase() }));
+  $('logo-del').hidden = !url;
+  $('logo-label').textContent = url ? 'Cambiar logo' : 'Subir logo';
+}
+$('logo-input').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  if (!f.type.startsWith('image/')) { toast('Elige una imagen (PNG o JPG).', 'err'); return; }
+  $('logo-label').textContent = 'Subiendo…';
+  try { S.settings = await api.setLogo(f); toast('Logo guardado'); }
+  catch (ex) { toast(ex.message + ' (si es la primera vez, ejecuta el SQL del logo en Supabase)', 'err'); }
+  renderLogo();
+});
+$('logo-del').addEventListener('click', async () => {
+  if (!confirm('¿Quitar el logo? Se mostrará la inicial del restaurante.')) return;
+  try { S.settings = await api.removeLogo(); toast('Logo quitado'); } catch (ex) { toast(ex.message, 'err'); }
+  renderLogo();
+});
 function renderSettings() {
+  renderLogo();
   for (const k of TEXT_FIELDS) sf[k].value = S.settings[k] ?? '';
   sf.bcv_rate.value = S.settings.bcv_rate ?? '';
   sf.eur_rate.value = S.settings.eur_rate ?? '';
