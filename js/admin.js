@@ -305,6 +305,7 @@ const TEXT_FIELDS = ['name', 'tagline', 'tagline_en', 'address', 'phone', 'hours
 function renderSettings() {
   for (const k of TEXT_FIELDS) sf[k].value = S.settings[k] ?? '';
   sf.bcv_rate.value = S.settings.bcv_rate ?? '';
+  sf.eur_rate.value = S.settings.eur_rate ?? '';
   sf.order_enabled.checked = S.settings.order_enabled !== false;
   sf.promo_active.checked = !!S.settings.promo_active;
   sf.querySelector('details.en').open = !!(S.settings.tagline_en || S.settings.hours_en);
@@ -320,10 +321,11 @@ $('fetch-rate').addEventListener('click', async e => {
 sf.addEventListener('submit', async e => {
   e.preventDefault();
   const rate = Number(sf.bcv_rate.value) || 0;
-  const patch = { bcv_rate: rate, order_enabled: sf.order_enabled.checked, promo_active: sf.promo_active.checked };
+  const eur = Number(sf.eur_rate.value) || 0;
+  const patch = { bcv_rate: rate, eur_rate: eur, order_enabled: sf.order_enabled.checked, promo_active: sf.promo_active.checked };
   for (const k of TEXT_FIELDS) patch[k] = sf[k].value.trim();
   if (patch.site_url && !/^https?:\/\//i.test(patch.site_url)) patch.site_url = 'https://' + patch.site_url;
-  if (rate !== Number(S.settings.bcv_rate || 0)) patch.bcv_updated_at = new Date().toISOString();
+  if (rate !== Number(S.settings.bcv_rate || 0) || eur !== Number(S.settings.eur_rate || 0)) patch.bcv_updated_at = new Date().toISOString();
   try { S.settings = await api.saveSettings(patch); renderSettings(); qrReady && ($('qr-url').value = defaultMenuUrl()); toast('Datos guardados'); }
   catch (ex) { toast(ex.message, 'err'); }
 });

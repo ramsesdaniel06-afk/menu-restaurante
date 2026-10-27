@@ -67,6 +67,7 @@ alter table public.settings add column if not exists promo_active boolean not nu
 alter table public.settings add column if not exists promo_text text default '';
 alter table public.settings add column if not exists promo_text_en text default '';
 alter table public.settings add column if not exists site_url text default '';
+alter table public.settings add column if not exists eur_rate numeric(12,4) default 0;
 
 alter table public.categories add column if not exists name_en text default '';
 

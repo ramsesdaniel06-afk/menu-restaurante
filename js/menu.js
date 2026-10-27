@@ -1,9 +1,9 @@
-import { loadMenu, fmtUsd, fmtBs, unitPrice, onSale, isDemo, track } from './data.js';
+import { loadMenu, fmtUsd, fmtBs, fmtEur, unitPrice, onSale, isDemo, track } from './data.js';
 import { h, googleLinks, socialLinks, waNumber } from './ui.js';
 import { t, L, getLang, setLang, locale, TAGS, ALLERGEN_TAGS } from './i18n.js';
 
 const $ = id => document.getElementById(id);
-const state = { settings: {}, cats: [], dishes: [], cat: 'all', sort: 'menu', q: '', filters: new Set(), offline: false, mesa: '' };
+const state = { settings: {}, cats: [], dishes: [], cur: 'usd', cat: 'all', sort: 'menu', q: '', filters: new Set(), offline: false, mesa: '' };
 const byId = new Map();
 const cart = new Map(); // id -> cantidad
 
@@ -13,6 +13,27 @@ const store = {
   set(k, v, s = localStorage) { try { s.setItem(k, v); } catch { /* ignore */ } },
 };
 const session = { get: k => store.get(k, sessionStorage), set: (k, v) => store.set(k, v, sessionStorage) };
+
+/* ---------- Moneda: dólar (base), bolívares a tasa BCV dólar, euros a tasa BCV euro ---------- */
+const curAvail = () => {
+  const r = Number(state.settings.bcv_rate) > 0, e = r && Number(state.settings.eur_rate) > 0;
+  return ['usd', ...(r ? ['bs'] : []), ...(e ? ['eur'] : [])];
+};
+const curNow = () => (curAvail().includes(state.cur) ? state.cur : 'usd');
+function priceIn(usd, cur = curNow()) {
+  const s = state.settings;
+  if (cur === 'bs') return fmtBs(usd, s.bcv_rate, locale()) || fmtUsd(usd);
+  if (cur === 'eur') return fmtEur(usd, s.bcv_rate, s.eur_rate, locale()) || fmtUsd(usd);
+  return fmtUsd(usd);
+}
+function renderCur() {
+  const opts = curAvail(), box = $('cur-btns'); box.replaceChildren();
+  $('cur').hidden = opts.length < 2;
+  const label = { usd: '$ ' + t('cur_usd'), bs: 'Bs. ' + t('cur_bs'), eur: '€ ' + t('cur_eur') };
+  for (const k of opts) box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(curNow() === k), onclick: () => {
+    state.cur = k; store.set('rm_cur', k); renderCur(); renderHighlights(); renderList(); renderCartBar(); if ($('cart-dlg').open) renderCartDialog();
+  } }, label[k]));
+}
 
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const nameOf = d => L(d, 'name');
@@ -76,7 +97,7 @@ function renderCtl(el) {
 
 function card(d, { rail = false, daily = false } = {}) {
   const price = unitPrice(d), sale = onSale(d), nm = nameOf(d), desc = L(d, 'description');
-  const bs = fmtBs(price, state.settings.bcv_rate, locale());
+  const alt = curNow() !== 'usd';
   const badges = [];
   if (d.daily && !daily) badges.push(h('span', { class: 'badge badge-daily' }, t('badge_daily')));
   if (d.featured && !rail) badges.push(h('span', { class: 'badge' }, t('badge_house')));
@@ -89,9 +110,9 @@ function card(d, { rail = false, daily = false } = {}) {
     h('div', { class: 'dish-body' },
       h('h3', { text: nm }),
       h('p', { class: 'price' },
-        h('b', { text: fmtUsd(price) }),
-        sale ? h('s', { text: fmtUsd(d.price_usd) }) : null,
-        bs ? h('small', { text: bs }) : null),
+        h('b', { text: priceIn(price) }),
+        sale ? h('s', { text: priceIn(d.price_usd) }) : null,
+        alt ? h('small', { text: fmtUsd(price) }) : null),
       desc ? h('p', { class: 'desc', text: desc }) : null,
       d.tags.length ? h('ul', { class: 'tags' }, TAGS.filter(x => d.tags.includes(x)).map(x => h('li', { class: 'tag' + (ALLERGEN_TAGS.includes(x) ? ' tag-warn' : '') }, t('t_' + x)))) : null),
     h('div', { class: 'cart-ctl', 'data-dish': d.id }));
@@ -190,8 +211,9 @@ function setQty(id, q) {
 }
 
 function money(usd) {
-  const bs = fmtBs(usd, state.settings.bcv_rate, locale());
-  return bs ? `${fmtUsd(usd)} · ${bs}` : fmtUsd(usd);
+  const c = curNow();
+  if (c === 'usd') { const bs = fmtBs(usd, state.settings.bcv_rate, locale()); return bs ? `${fmtUsd(usd)} · ${bs}` : fmtUsd(usd); }
+  return `${fmtUsd(usd)} · ${priceIn(usd)}`;
 }
 function renderCartBar() {
   const n = cartCount(), on = orderingOn() && n > 0;
@@ -200,7 +222,7 @@ function renderCartBar() {
   $('cart-badge').hidden = n === 0; $('cart-badge').textContent = String(n);
   document.body.classList.toggle('has-cart', on);
   $('cart-count').textContent = String(n);
-  $('cart-total').textContent = fmtUsd(cartTotal());
+  $('cart-total').textContent = priceIn(cartTotal());
   if (!on && $('cart-dlg').open) $('cart-dlg').close();
 }
 
@@ -256,15 +278,18 @@ function renderContact() {
     onclick: () => track(l.key === 'whatsapp' ? 'click_whatsapp' : 'click_social', { meta: l.key === 'whatsapp' ? null : l.key }),
   }, l.key === 'website' ? t('website') : l.label)));
   const wa = links.find(l => l.key === 'whatsapp');
-  $('wa-float').hidden = !wa;
-  if (wa) $('wa-float').href = wa.url;
+  const fb = !wa && links.length > 0;   // sin WhatsApp: el botón lleva a la sección de contacto
+  $('wa-float').hidden = !wa && !fb;
+  $('wa-float').href = wa ? wa.url : '#contacto';
+  if (wa) { $('wa-float').target = '_blank'; } else { $('wa-float').removeAttribute('target'); }
 }
 function renderFooter() {
   const s = state.settings;
   $('f-name').textContent = s.name; $('f-address').textContent = s.address || ''; $('f-phone').textContent = s.phone || '';
   if (Number(s.bcv_rate) > 0) {
     const date = s.bcv_updated_at ? new Date(s.bcv_updated_at).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }) : '';
-    $('f-rate').textContent = t('rate_note', { rate: Number(s.bcv_rate).toLocaleString(locale(), { minimumFractionDigits: 2 }), date });
+    const fmt = n => Number(n).toLocaleString(locale(), { minimumFractionDigits: 2 });
+    $('f-rate').textContent = t('rate_note', { rate: fmt(s.bcv_rate), date, eur: Number(s.eur_rate) > 0 ? t('eur_part', { rate: fmt(s.eur_rate) }) : '' });
   } else $('f-rate').textContent = '';
   $('f-demo').hidden = !isDemo; $('f-demo').textContent = t('demo_note');
 }
@@ -305,7 +330,7 @@ function applyStatic() {
 }
 
 function renderAll() {
-  applyStatic(); renderHero(); renderPromo(); renderHighlights(); renderDiet(); renderChips(); renderList();
+  applyStatic(); renderCur(); renderHero(); renderPromo(); renderHighlights(); renderDiet(); renderChips(); renderList();
   renderContact(); renderFooter(); renderCartBar();
   const g = googleLinks(state.settings); $('g-write').href = g.write; $('g-read').href = g.reviews;
   if ($('cart-dlg').open) renderCartDialog();
@@ -326,6 +351,7 @@ async function init() {
 
   try { for (const [id, q] of Object.entries(JSON.parse(store.get('rm_cart_v2') || '{}'))) { const d = byId.get(id); if (d && d.active && !d.sold_out && q > 0) cart.set(id, Math.min(99, q)); } } catch { /* carrito corrupto */ }
   $('o-name').value = store.get('rm_oname') || '';
+  state.cur = store.get('rm_cur') || 'usd';
 
   // eventos
   $('lang').addEventListener('click', () => { setLang(getLang() === 'es' ? 'en' : 'es'); renderAll(); });
@@ -333,10 +359,7 @@ async function init() {
   $('menu-btn').addEventListener('click', () => drawer.showModal());
   $('menu-close').addEventListener('click', () => drawer.close());
   drawer.addEventListener('click', e => { if (e.target === drawer || e.target.closest('.drawer-nav a')) drawer.close(); });
-  $('search-btn').addEventListener('click', () => {
-    const open = $('finder').hidden; $('finder').hidden = !open; $('search-btn').setAttribute('aria-expanded', String(open));
-    if (open) $('q').focus();
-  });
+  $('search-btn').addEventListener('click', () => { scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' }); $('q').focus({ preventScroll: true }); });
   $('cart-btn').addEventListener('click', openCart);
   $('see-all').addEventListener('click', () => { state.cat = 'all'; state.sort = 'menu'; $('sort').value = 'menu'; renderChips(); renderList(); });
   $('promo-x').addEventListener('click', () => { session.set('rm_promo_x', L(state.settings, 'promo_text').trim()); renderPromo(); });

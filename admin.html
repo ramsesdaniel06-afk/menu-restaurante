@@ -158,13 +158,17 @@
             <span class="hint">Se usa para los códigos QR. Si lo dejas vacío, se toma la dirección desde la que estás entrando.</span>
           </label>
 
-          <h2>Precios en bolívares</h2>
+          <h2>Precios en bolívares y euros</h2>
           <div class="fgrid">
             <label>Tasa BCV (Bs. por $1)
               <input name="bcv_rate" type="number" step="0.01" min="0" inputmode="decimal">
               <span class="hint" id="rate-hint"></span>
             </label>
             <div class="rate-btn"><button class="btn btn-soft" type="button" id="fetch-rate">Traer tasa BCV</button></div>
+            <label>Tasa euro BCV (Bs. por 1 €)
+              <input name="eur_rate" type="number" step="0.01" min="0" inputmode="decimal">
+              <span class="hint">Opcional. Con las dos tasas, el cliente puede ver los precios en euros. Los platillos siempre se escriben en dólares.</span>
+            </label>
           </div>
           <div class="form-foot"><button class="btn btn-primary" type="submit">Guardar cambios</button></div>
         </form>

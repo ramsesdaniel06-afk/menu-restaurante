@@ -11,6 +11,11 @@ export function fmtBs(usd, rate, locale = 'es-VE') {
   if (!rate || Number(rate) <= 0) return '';
   return 'Bs. ' + (Number(usd) * Number(rate)).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+/** Euros a partir de dólares: ambas tasas son Bs. por unidad (dólar BCV y euro BCV). */
+export function fmtEur(usd, usdRate, eurRate, locale = 'es-VE') {
+  if (!(Number(usdRate) > 0) || !(Number(eurRate) > 0)) return '';
+  return '€' + (Number(usd) * Number(usdRate) / Number(eurRate)).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 /** Precio vigente: el de oferta si existe, si no el normal. */
 export const unitPrice = d => (d.sale_price_usd != null && Number(d.sale_price_usd) >= 0 && Number(d.sale_price_usd) < Number(d.price_usd) ? Number(d.sale_price_usd) : Number(d.price_usd));
 export const onSale = d => unitPrice(d) < Number(d.price_usd);
@@ -83,7 +88,7 @@ function seed() {
       google_place_id: '', whatsapp: '584140000000', whatsapp_message: 'Hola, quisiera hacer una reserva.', instagram: 'mirestaurante',
       facebook: '', tiktok: '', x_twitter: '', youtube: '', website: '', site_url: '',
       order_enabled: true, promo_active: true, promo_text: '2×1 en postres todos los jueves', promo_text_en: '2-for-1 desserts every Thursday',
-      bcv_rate: 40, bcv_updated_at: new Date().toISOString(),
+      bcv_rate: 40, eur_rate: 46, bcv_updated_at: new Date().toISOString(),
     },
     categories: cats, dishes, events: [],
   };

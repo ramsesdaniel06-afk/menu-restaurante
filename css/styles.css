@@ -74,7 +74,7 @@ button { font-family: inherit; }
 /* ---------- Buscador ---------- */
 .finder { background: #fff; border-bottom: 1px solid var(--line); padding: 14px 0 10px; }
 .finder-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.search { flex: 1 1 240px; }
+.search { flex: 1 1 160px; }
 .search input { width: 100%; font: inherit; color: var(--strong); background: var(--bg); border: 1.5px solid var(--line); border-radius: 999px; padding: 0 20px; min-height: 48px; }
 .search input::placeholder { color: var(--muted); }
 .search input:focus { outline: 3px solid rgba(244,169,176,.7); border-color: var(--accent); }
@@ -247,3 +247,11 @@ body.has-cart main { padding-bottom: 84px; }
 .cart-foot .muted { text-align: center; }
 .cart-sum { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.1rem; font-weight: 700; color: var(--strong); gap: 12px; flex-wrap: wrap; }
 @media (max-width: 600px) { .cart-dlg { margin: auto auto 0; border-radius: 26px 26px 0 0; width: 100%; max-height: 92svh; } }
+
+/* ---------- Moneda ---------- */
+.cur { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 0 2px; }
+.cur-l { font-size: .85rem; font-weight: 600; color: var(--muted); }
+.cur-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.cur .chip[aria-pressed='true'] { background: var(--mint); border-color: var(--mint); color: var(--on-mint); }
+.price b { font-variant-numeric: tabular-nums; }
+.price small { order: 3; }
