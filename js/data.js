@@ -88,7 +88,7 @@ function seed() {
       google_place_id: '', whatsapp: '584140000000', whatsapp_message: 'Hola, quisiera hacer una reserva.', instagram: 'mirestaurante',
       facebook: '', tiktok: '', x_twitter: '', youtube: '', website: '', site_url: '',
       order_enabled: true, promo_active: true, promo_text: '2×1 en postres todos los jueves', promo_text_en: '2-for-1 desserts every Thursday',
-      bcv_rate: 40, eur_rate: 46, bcv_updated_at: new Date().toISOString(),
+      bcv_rate: 0, eur_rate: 0, bcv_updated_at: null,
     },
     categories: cats, dishes, events: [],
   };
@@ -310,6 +310,27 @@ export async function signOut() {
 }
 
 /* ---------- Tasa BCV (opcional, si el servicio responde) ---------- */
+/** Tasas oficiales BCV automáticas (dólar y euro, Bs. por unidad). Se guardan 30 min en el navegador;
+ *  si el servicio falla se usa la última tasa conocida. Devuelve { usd, eur, updated } con 0 si no hay dato. */
+const RATES_KEY = 'rm_rates_v1', RATES_TTL = 30 * 60 * 1000;
+export async function getAutoRates() {
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(RATES_KEY) || 'null'); } catch { /* sin caché */ }
+  if (cached && Date.now() - cached.ts < RATES_TTL) return cached.v;
+  const num = j => { const v = Number(j?.promedio ?? j?.venta ?? j?.compra); return v > 0 ? v : 0; };
+  const get = async p => { const r = await fetch('https://ve.dolarapi.com/v1/' + p, { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); return r.json(); };
+  const [u, e] = await Promise.allSettled([
+    get('dolares/oficial'),
+    get('euros/oficial').catch(async () => { const a = await get('euros'); return Array.isArray(a) ? a.find(x => x.fuente === 'oficial') : a; }),
+  ]);
+  const du = u.status === 'fulfilled' ? u.value : null, de = e.status === 'fulfilled' ? e.value : null;
+  const v = { usd: num(du), eur: num(de), updated: du?.fechaActualizacion || de?.fechaActualizacion || '' };
+  if (!v.usd && cached?.v?.usd) { v.usd = cached.v.usd; v.updated = cached.v.updated; }
+  if (!v.eur && cached?.v?.eur) v.eur = cached.v.eur;
+  if (v.usd || v.eur) { try { localStorage.setItem(RATES_KEY, JSON.stringify({ ts: Date.now(), v })); } catch { /* ignore */ } }
+  return v;
+}
+
 export async function fetchBcvRate() {
   const r = await fetch('https://ve.dolarapi.com/v1/dolares/oficial', { cache: 'no-store' });
   if (!r.ok) throw new Error('El servicio de tasas no respondió.');

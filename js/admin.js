@@ -310,11 +310,11 @@ function renderSettings() {
   sf.promo_active.checked = !!S.settings.promo_active;
   sf.querySelector('details.en').open = !!(S.settings.tagline_en || S.settings.hours_en);
   const t = S.settings.bcv_updated_at;
-  $('rate-hint').textContent = t ? `Última actualización: ${new Date(t).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' })}. Los precios en Bs. se calculan solos.` : 'Los precios en Bs. se calculan solos con esta tasa.';
+  $('rate-hint').textContent = (S.settings.bcv_rate > 0) ? `Tasa fija. Última actualización: ${t ? new Date(t).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}. Borra el valor para volver a la automática.` : 'Vacío = se usa la tasa oficial BCV automática.';
 }
 $('fetch-rate').addEventListener('click', async e => {
   e.target.disabled = true;
-  try { sf.bcv_rate.value = (await api.fetchBcvRate()).toFixed(2); toast('Tasa traída. Revisa el valor y guarda los cambios.'); }
+  try { const v = await api.fetchBcvRate(); toast(`Tasa BCV de hoy: Bs. ${v.toFixed(2)} por $1. El menú la usa solo; no hace falta escribirla.`); }
   catch { toast('No se pudo traer la tasa. Escríbela a mano.', 'err'); }
   e.target.disabled = false;
 });

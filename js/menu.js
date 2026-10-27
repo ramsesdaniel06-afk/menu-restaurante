@@ -1,4 +1,4 @@
-import { loadMenu, fmtUsd, fmtBs, fmtEur, unitPrice, onSale, isDemo, track } from './data.js';
+import { loadMenu, getAutoRates, fmtUsd, fmtBs, fmtEur, unitPrice, onSale, isDemo, track } from './data.js';
 import { h, googleLinks, socialLinks, waNumber } from './ui.js';
 import { t, L, getLang, setLang, locale, TAGS, ALLERGEN_TAGS } from './i18n.js';
 
@@ -15,15 +15,21 @@ const store = {
 const session = { get: k => store.get(k, sessionStorage), set: (k, v) => store.set(k, v, sessionStorage) };
 
 /* ---------- Moneda: dólar (base), bolívares a tasa BCV dólar, euros a tasa BCV euro ---------- */
+// Tasa manual del panel (si existe) o tasa oficial BCV automática.
+const auto = { usd: 0, eur: 0, updated: '' };
+const rates = () => ({
+  usd: Number(state.settings.bcv_rate) > 0 ? Number(state.settings.bcv_rate) : auto.usd,
+  eur: Number(state.settings.eur_rate) > 0 ? Number(state.settings.eur_rate) : auto.eur,
+});
 const curAvail = () => {
-  const r = Number(state.settings.bcv_rate) > 0, e = r && Number(state.settings.eur_rate) > 0;
+  const r = rates().usd > 0, e = r && rates().eur > 0;
   return ['usd', ...(r ? ['bs'] : []), ...(e ? ['eur'] : [])];
 };
 const curNow = () => (curAvail().includes(state.cur) ? state.cur : 'usd');
 function priceIn(usd, cur = curNow()) {
-  const s = state.settings;
-  if (cur === 'bs') return fmtBs(usd, s.bcv_rate, locale()) || fmtUsd(usd);
-  if (cur === 'eur') return fmtEur(usd, s.bcv_rate, s.eur_rate, locale()) || fmtUsd(usd);
+  const r = rates();
+  if (cur === 'bs') return fmtBs(usd, r.usd, locale()) || fmtUsd(usd);
+  if (cur === 'eur') return fmtEur(usd, r.usd, r.eur, locale()) || fmtUsd(usd);
   return fmtUsd(usd);
 }
 function renderCur() {
@@ -212,7 +218,7 @@ function setQty(id, q) {
 
 function money(usd) {
   const c = curNow();
-  if (c === 'usd') { const bs = fmtBs(usd, state.settings.bcv_rate, locale()); return bs ? `${fmtUsd(usd)} · ${bs}` : fmtUsd(usd); }
+  if (c === 'usd') { const bs = fmtBs(usd, rates().usd, locale()); return bs ? `${fmtUsd(usd)} · ${bs}` : fmtUsd(usd); }
   return `${fmtUsd(usd)} · ${priceIn(usd)}`;
 }
 function renderCartBar() {
@@ -244,7 +250,7 @@ function buildOrder() {
   out.push('');
   for (const { d, q } of lines) out.push(`${q} x ${nameOf(d)} — ${fmtUsd(unitPrice(d) * q)}`);
   out.push('');
-  const bs = fmtBs(total, s.bcv_rate, locale());
+  const bs = fmtBs(total, rates().usd, locale());
   out.push(`*${t('order_msg_total')}: ${fmtUsd(total)}*${bs ? ` (${bs})` : ''}`);
   if (notes) out.push('', `${t('order_msg_notes')}: ${notes}`);
   return { url: `https://wa.me/${waNumber(s.whatsapp)}?text=${encodeURIComponent(out.join('\n'))}`, total };
@@ -278,18 +284,20 @@ function renderContact() {
     onclick: () => track(l.key === 'whatsapp' ? 'click_whatsapp' : 'click_social', { meta: l.key === 'whatsapp' ? null : l.key }),
   }, l.key === 'website' ? t('website') : l.label)));
   const wa = links.find(l => l.key === 'whatsapp');
-  const fb = !wa && links.length > 0;   // sin WhatsApp: el botón lleva a la sección de contacto
-  $('wa-float').hidden = !wa && !fb;
-  $('wa-float').href = wa ? wa.url : '#contacto';
+  // El botón siempre está visible; sin WhatsApp configurado lleva a la sección de contacto (o al pie).
+  $('wa-float').hidden = false;
+  $('wa-float').href = wa ? wa.url : (links.length ? '#contacto' : '#pie');
   if (wa) { $('wa-float').target = '_blank'; } else { $('wa-float').removeAttribute('target'); }
 }
 function renderFooter() {
   const s = state.settings;
   $('f-name').textContent = s.name; $('f-address').textContent = s.address || ''; $('f-phone').textContent = s.phone || '';
-  if (Number(s.bcv_rate) > 0) {
-    const date = s.bcv_updated_at ? new Date(s.bcv_updated_at).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }) : '';
+  const r = rates();
+  if (r.usd > 0) {
+    const when = Number(s.bcv_rate) > 0 ? s.bcv_updated_at : auto.updated;
+    const date = when ? new Date(when).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }) : '';
     const fmt = n => Number(n).toLocaleString(locale(), { minimumFractionDigits: 2 });
-    $('f-rate').textContent = t('rate_note', { rate: fmt(s.bcv_rate), date, eur: Number(s.eur_rate) > 0 ? t('eur_part', { rate: fmt(s.eur_rate) }) : '' });
+    $('f-rate').textContent = t('rate_note', { rate: fmt(r.usd), date: date || '—', eur: r.eur > 0 ? t('eur_part', { rate: fmt(r.eur) }) : '' });
   } else $('f-rate').textContent = '';
   $('f-demo').hidden = !isDemo; $('f-demo').textContent = t('demo_note');
 }
@@ -385,6 +393,7 @@ async function init() {
   $('wa-float').addEventListener('click', () => track('click_whatsapp'));
 
   renderAll();
+  getAutoRates().then(v => { Object.assign(auto, v); renderCur(); renderHighlights(); renderList(); renderFooter(); renderCartBar(); }).catch(() => {});
   if (!session.get('rm_visit')) { session.set('rm_visit', '1'); track('visit', { meta: state.mesa ? `mesa:${state.mesa}` : null }); }
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 }
