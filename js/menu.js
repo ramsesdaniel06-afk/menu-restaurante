@@ -151,7 +151,7 @@ function renderChips() {
   const chips = $('chips'); chips.replaceChildren();
   const active = state.dishes.filter(d => d.active);
   const used = new Set(active.map(d => d.category_id));
-  const mk = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(state.cat === id), onclick: () => { state.cat = id; renderChips(); renderList(); } }, label);
+  const mk = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(state.cat === id), onclick: () => { state.cat = id; renderChips(); renderList(); renderHighlights(); const beh = reduceMotion() ? 'auto' : 'smooth'; id === 'all' ? scrollTo({ top: 0, behavior: beh }) : $('menu').scrollIntoView({ behavior: beh }); } }, label);
   chips.append(mk('all', t('all')), ...state.cats.filter(c => used.has(c.id)).map(c => mk(c.id, L(c, 'name'))));
   // Dieta y alérgenos: más categorías en la misma fila; se pueden combinar entre sí y con la categoría.
   const present = new Set(active.flatMap(d => d.tags));
@@ -193,7 +193,7 @@ function renderList() {
 }
 
 function renderHighlights() {
-  const hide = filtering();
+  const hide = filtering() || state.cat !== 'all';
   const daily = hide ? null : state.dishes.find(d => d.active && d.daily);
   $('dia').hidden = !daily;
   $('dia-card').replaceChildren(...(daily ? [card(daily, { daily: true })] : []));
@@ -370,7 +370,7 @@ async function init() {
   drawer.addEventListener('click', e => { if (e.target === drawer || e.target.closest('.drawer-nav a')) drawer.close(); });
   $('search-btn').addEventListener('click', () => { scrollTo({ top: 0, behavior: reduceMotion() ? 'auto' : 'smooth' }); $('q').focus({ preventScroll: true }); });
   $('cart-btn').addEventListener('click', openCart);
-  $('see-all').addEventListener('click', () => { state.cat = 'all'; state.sort = 'menu'; $('sort').value = 'menu'; renderChips(); renderList(); });
+  $('see-all').addEventListener('click', () => { state.cat = 'all'; state.sort = 'menu'; $('sort').value = 'menu'; renderChips(); renderList(); renderHighlights(); });
   $('promo-x').addEventListener('click', () => { session.set('rm_promo_x', L(state.settings, 'promo_text').trim()); renderPromo(); });
   $('sort').addEventListener('change', e => { state.sort = e.target.value; renderList(); });
   $('q').addEventListener('input', e => {

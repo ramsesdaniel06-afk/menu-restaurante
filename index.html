@@ -64,6 +64,19 @@
       </div>
     </div>
   </div>
+    <div class="bar">
+      <div class="wrap bar-in">
+        <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
+        <label class="sort">
+          <span data-i18n="sort">Ordenar</span>
+          <select id="sort">
+            <option value="menu" data-i18n="sort_menu">Orden del menú</option>
+            <option value="asc" data-i18n="sort_asc">Precio: de menor a mayor</option>
+            <option value="desc" data-i18n="sort_desc">Precio: de mayor a menor</option>
+          </select>
+        </label>
+      </div>
+    </div>
   <p class="table-strip" id="table-chip" hidden></p>
 
   <dialog id="menu-dlg" class="drawer" aria-labelledby="drawer-t">
@@ -100,19 +113,6 @@
 
     <section id="menu" class="menu" aria-labelledby="menu-t">
       <div class="wrap"><h2 id="menu-t" class="sr" data-i18n="nav_menu">Menú</h2></div>
-      <div class="bar">
-        <div class="wrap bar-in">
-          <div class="chips" id="chips" role="group" aria-label="Categorías"></div>
-          <label class="sort">
-            <span data-i18n="sort">Ordenar</span>
-            <select id="sort">
-              <option value="menu" data-i18n="sort_menu">Orden del menú</option>
-              <option value="asc" data-i18n="sort_asc">Precio: de menor a mayor</option>
-              <option value="desc" data-i18n="sort_desc">Precio: de mayor a menor</option>
-            </select>
-          </label>
-        </div>
-      </div>
       <div class="wrap">
         <div id="list" aria-live="polite"></div>
       </div>
