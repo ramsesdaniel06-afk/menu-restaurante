@@ -171,13 +171,14 @@
 
           <h2>Precios en bolívares y euros</h2>
           <div class="fgrid">
-            <p class="hint span">Las tasas oficiales del BCV se actualizan <b>solas</b> en el menú. Solo escribe una tasa aquí si quieres fijarla tú (por ejemplo, para un precio propio); si la dejas vacía, se usa la automática.</p>
-            <label>Tasa del dólar manual (Bs. por $1) — opcional
+            <label class="sw span"><input type="checkbox" name="rates_auto"><span>Actualizar las tasas solas con las del Banco Central de Venezuela (recomendado)</span></label>
+            <p class="hint span">Con esto activado, el menú usa cada día la tasa oficial del BCV para el dólar y el euro, y los campos de abajo se ignoran. Desactívalo solo si quieres fijar tú las tasas.</p>
+            <label>Tasa del dólar manual (Bs. por $1)
               <input name="bcv_rate" type="number" step="0.01" min="0" inputmode="decimal">
               <span class="hint" id="rate-hint"></span>
             </label>
             <div class="rate-btn"><button class="btn btn-soft" type="button" id="fetch-rate">Ver tasa BCV actual</button></div>
-            <label>Tasa del euro manual (Bs. por 1 €) — opcional
+            <label>Tasa del euro manual (Bs. por 1 €)
               <input name="eur_rate" type="number" step="0.01" min="0" inputmode="decimal">
               <span class="hint">Los platillos siempre se escriben en dólares; el cliente los ve convertidos con estas tasas.</span>
             </label>

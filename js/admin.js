@@ -322,16 +322,22 @@ $('logo-del').addEventListener('click', async () => {
   try { S.settings = await api.removeLogo(); toast('Logo quitado'); } catch (ex) { toast(ex.message, 'err'); }
   renderLogo();
 });
+function syncRates() {
+  const on = sf.rates_auto.checked;
+  sf.bcv_rate.disabled = on; sf.eur_rate.disabled = on; $('fetch-rate').disabled = false;
+}
 function renderSettings() {
   renderLogo();
   for (const k of TEXT_FIELDS) sf[k].value = S.settings[k] ?? '';
   sf.bcv_rate.value = S.settings.bcv_rate ?? '';
   sf.eur_rate.value = S.settings.eur_rate ?? '';
+  sf.rates_auto.checked = S.settings.rates_auto !== false;
+  syncRates();
   sf.order_enabled.checked = S.settings.order_enabled !== false;
   sf.promo_active.checked = !!S.settings.promo_active;
   sf.querySelector('details.en').open = !!(S.settings.tagline_en || S.settings.hours_en);
   const t = S.settings.bcv_updated_at;
-  $('rate-hint').textContent = (S.settings.bcv_rate > 0) ? `Tasa fija. Última actualización: ${t ? new Date(t).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}. Borra el valor para volver a la automática.` : 'Vacío = se usa la tasa oficial BCV automática.';
+  $('rate-hint').textContent = S.settings.rates_auto !== false ? 'Se usa la tasa oficial del BCV, actualizada sola.' : (S.settings.bcv_rate > 0) ? `Tasa fija. Última actualización: ${t ? new Date(t).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}. Borra el valor para volver a la automática.` : 'Vacío = se usa la tasa oficial BCV automática.';
 }
 $('fetch-rate').addEventListener('click', async e => {
   e.target.disabled = true;
@@ -339,11 +345,12 @@ $('fetch-rate').addEventListener('click', async e => {
   catch { toast('No se pudo traer la tasa. Escríbela a mano.', 'err'); }
   e.target.disabled = false;
 });
+sf.rates_auto.addEventListener('change', syncRates);
 sf.addEventListener('submit', async e => {
   e.preventDefault();
   const rate = Number(sf.bcv_rate.value) || 0;
   const eur = Number(sf.eur_rate.value) || 0;
-  const patch = { bcv_rate: rate, eur_rate: eur, order_enabled: sf.order_enabled.checked, promo_active: sf.promo_active.checked };
+  const patch = { rates_auto: sf.rates_auto.checked, bcv_rate: rate, eur_rate: eur, order_enabled: sf.order_enabled.checked, promo_active: sf.promo_active.checked };
   for (const k of TEXT_FIELDS) patch[k] = sf[k].value.trim();
   if (patch.site_url && !/^https?:\/\//i.test(patch.site_url)) patch.site_url = 'https://' + patch.site_url;
   if (rate !== Number(S.settings.bcv_rate || 0) || eur !== Number(S.settings.eur_rate || 0)) patch.bcv_updated_at = new Date().toISOString();

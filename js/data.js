@@ -88,7 +88,7 @@ function seed() {
       google_place_id: '', whatsapp: '584140000000', whatsapp_message: 'Hola, quisiera hacer una reserva.', instagram: 'mirestaurante',
       facebook: '', tiktok: '', x_twitter: '', youtube: '', website: '', site_url: '',
       order_enabled: true, promo_active: true, promo_text: '2×1 en postres todos los jueves', promo_text_en: '2-for-1 desserts every Thursday',
-      bcv_rate: 0, eur_rate: 0, bcv_updated_at: null,
+      bcv_rate: 0, eur_rate: 0, rates_auto: true, bcv_updated_at: null,
     },
     categories: cats, dishes, events: [],
   };
@@ -341,6 +341,8 @@ export async function getAutoRates() {
   try { cached = JSON.parse(localStorage.getItem(RATES_KEY) || 'null'); } catch { /* sin caché */ }
   if (cached && Date.now() - cached.ts < RATES_TTL) return cached.v;
   const num = j => { const v = Number(j?.promedio ?? j?.venta ?? j?.compra); return v > 0 ? v : 0; };
+  const viaApi = async () => { const r = await fetch('/api/rates', { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); const j = await r.json(); if (!(j.usd > 0)) throw new Error('vacío'); return { usd: j.usd, eur: j.eur || 0, updated: j.updated || '' }; };
+  try { const v = await viaApi(); try { localStorage.setItem(RATES_KEY, JSON.stringify({ ts: Date.now(), v })); } catch { /* ignore */ } return v; } catch { /* sin función propia (p. ej. en local): se consulta el servicio directo */ }
   const get = async p => { const r = await fetch('https://ve.dolarapi.com/v1/' + p, { cache: 'no-store' }); if (!r.ok) throw new Error(String(r.status)); return r.json(); };
   const [u, e] = await Promise.allSettled([
     get('dolares/oficial'),

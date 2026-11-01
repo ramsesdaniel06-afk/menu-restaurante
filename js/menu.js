@@ -17,10 +17,12 @@ const session = { get: k => store.get(k, sessionStorage), set: (k, v) => store.s
 /* ---------- Moneda: dólar (base), bolívares a tasa BCV dólar, euros a tasa BCV euro ---------- */
 // Tasa manual del panel (si existe) o tasa oficial BCV automática.
 const auto = { usd: 0, eur: 0, updated: '' };
-const rates = () => ({
-  usd: Number(state.settings.bcv_rate) > 0 ? Number(state.settings.bcv_rate) : auto.usd,
-  eur: Number(state.settings.eur_rate) > 0 ? Number(state.settings.eur_rate) : auto.eur,
-});
+// Por defecto las tasas son las oficiales del BCV, actualizadas solas. Con "manual" se usan las del panel (y la automática de respaldo).
+const rates = () => {
+  const m = { usd: Number(state.settings.bcv_rate) || 0, eur: Number(state.settings.eur_rate) || 0 };
+  const manual = state.settings.rates_auto === false;
+  return manual ? { usd: m.usd || auto.usd, eur: m.eur || auto.eur } : { usd: auto.usd || m.usd, eur: auto.eur || m.eur };
+};
 const curAvail = () => {
   const r = rates().usd > 0, e = r && rates().eur > 0;
   return ['usd', ...(r ? ['bs'] : []), ...(e ? ['eur'] : [])];
@@ -294,7 +296,7 @@ function renderFooter() {
   $('f-name').textContent = s.name; $('f-address').textContent = s.address || ''; $('f-phone').textContent = s.phone || '';
   const r = rates();
   if (r.usd > 0) {
-    const when = Number(s.bcv_rate) > 0 ? s.bcv_updated_at : auto.updated;
+    const when = (s.rates_auto === false && Number(s.bcv_rate) > 0) ? s.bcv_updated_at : (auto.updated || s.bcv_updated_at);
     const date = when ? new Date(when).toLocaleDateString(locale(), { day: 'numeric', month: 'long' }) : '';
     const fmt = n => Number(n).toLocaleString(locale(), { minimumFractionDigits: 2 });
     $('f-rate').textContent = t('rate_note', { rate: fmt(r.usd), date: date || '—', eur: r.eur > 0 ? t('eur_part', { rate: fmt(r.eur) }) : '' });

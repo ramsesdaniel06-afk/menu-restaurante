@@ -53,7 +53,10 @@ Con WhatsApp configurado también aparece un botón flotante "Escríbenos" y pue
 Acepta usuario (@mirestaurante) o enlace completo. El WhatsApp va con código de país (584141234567; si empieza por 0 se toma como Venezuela).
 **Si ya habías ejecutado una versión anterior de `schema.sql`:** vuelve a ejecutarlo completo (es seguro repetirlo); añade columnas, la tabla de estadísticas y sus funciones.
 
-## Tasa BCV
+## Tasa BCV (automática)
+Por defecto, el menú usa cada día las tasas oficiales del Banco Central (dólar y euro). `api/rates.js` las consulta en ve.dolarapi.com, Vercel las guarda 1 hora y, si el servicio falla, sigue mostrando la última buena. En Administración puedes desactivar la opción y fijar tasas a mano.
+
+## Tasa BCV (manual, antiguo)
 Se escribe a mano (o con "Traer tasa BCV", que consulta un servicio público de terceros y puede fallar).
 Los precios en Bs. se calculan solos a partir del precio en $. Con tasa 0, solo se muestra el precio en $.
 
