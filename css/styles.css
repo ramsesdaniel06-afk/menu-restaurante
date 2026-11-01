@@ -52,6 +52,9 @@ button { font-family: inherit; }
 .head-actions { display: flex; justify-content: flex-end; gap: 2px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; }
 .brand-mark { flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; font-weight: 700; font-size: 1.3rem; box-shadow: 0 0 0 4px var(--peach); }
+.brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.brand-tag { font-size: .7rem; color: var(--muted); max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 560px) { .brand-tag { max-width: 320px; font-size: .78rem; } }
 .brand h1 { font-size: 1.05rem; font-weight: 700; letter-spacing: .01em; max-width: 44vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dish-daily .ph { aspect-ratio: 4 / 3; }
 @media (min-width: 560px) { .brand h1 { max-width: 320px; font-size: 1.25rem; } }

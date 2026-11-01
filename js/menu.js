@@ -313,6 +313,7 @@ function renderHero() {
   else { mark.className = 'brand-mark'; mark.textContent = String(s.name || 'M').trim().slice(0, 1).toUpperCase(); }
   const hrs = L(s, 'hours');
   $('r-tagline').textContent = L(s, 'tagline');
+  const tg = L(s, 'tagline'); $('r-tag').textContent = tg; $('r-tag').hidden = !tg;
   $('r-hours').textContent = hrs; $('hoursbar').hidden = !hrs;
   $('table-chip').hidden = !state.mesa; $('table-chip').textContent = state.mesa ? t('table_banner', { n: state.mesa }) : '';
   $('lang').textContent = getLang() === 'es' ? 'EN' : 'ES';
