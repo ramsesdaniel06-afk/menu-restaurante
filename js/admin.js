@@ -39,7 +39,7 @@ async function loadAll() {
 }
 
 /* ---------- Pestañas ---------- */
-const TABS = [['tab-dishes', 'v-dishes'], ['tab-stats', 'v-stats'], ['tab-qr', 'v-qr'], ['tab-settings', 'v-settings']];
+const TABS = [['tab-dishes', 'v-dishes'], ['tab-stats', 'v-stats'], ['tab-qr', 'v-qr'], ['tab-cats', 'v-cats'], ['tab-settings', 'v-settings']];
 for (const [tab, view] of TABS) {
   $(tab).addEventListener('click', () => {
     for (const [t, v] of TABS) { $(t).setAttribute('aria-selected', String(t === tab)); $(v).hidden = v !== view; }
