@@ -12,7 +12,7 @@ self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET') return;
   // La API de Supabase nunca se intercepta (datos siempre frescos; la app guarda su propio respaldo).
-  if (url.hostname.endsWith('supabase.co') || url.pathname.startsWith('/api/') || url.pathname.endsWith('admin.html') || url.pathname.endsWith('/js/admin.js')) return;
+  if (url.hostname.endsWith('supabase.co') || url.pathname.startsWith('/api/') || url.pathname === '/admin' || url.pathname.endsWith('admin.html') || url.pathname.endsWith('/js/admin.js')) return;
   const isAsset = /\.(png|jpe?g|webp|avif|svg|woff2?)$/i.test(url.pathname) || /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname) || url.pathname.includes('/storage/v1/object/public/');
   if (isAsset) {
     // imágenes y fuentes: primero caché

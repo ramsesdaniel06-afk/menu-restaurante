@@ -61,3 +61,7 @@ Los precios en Bs. se calculan solos a partir del precio en $. Con tasa 0, solo 
 - Las fotos se comprimen en el navegador (máx. 1400 px) antes de subirse.
 - "Ocultar" quita el platillo del menú sin borrarlo; "Eliminar" lo borra con sus fotos.
 - La clave anon es pública por diseño; la seguridad está en las políticas RLS del esquema.
+
+## Acceso al panel
+El menú público ya no muestra ningún enlace al panel. Entra escribiendo `/admin` al final de tu dirección (en Vercel; en local, `/admin.html`).
+El panel tiene `noindex` y `robots.txt` lo oculta a Google; solo las cuentas de la tabla `admins` pueden editar.

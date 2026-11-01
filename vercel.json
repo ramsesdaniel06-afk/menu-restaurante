@@ -1,6 +1,9 @@
 {
   "cleanUrls": false,
-  "rewrites": [{ "source": "/", "destination": "/api/page" }],
+  "rewrites": [
+    { "source": "/", "destination": "/api/page" },
+    { "source": "/admin", "destination": "/admin.html" }
+  ],
   "functions": { "api/page.js": { "includeFiles": "{index.html,js/config.js}" } },
   "headers": [
     { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
