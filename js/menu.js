@@ -1,4 +1,4 @@
-import { loadMenu, getAutoRates, fmtUsd, fmtBs, fmtEur, unitPrice, onSale, isDemo, track } from './data.js';
+import { loadMenu, getAutoRates, fmtUsd, fmtBs, unitPrice, onSale, isDemo, track } from './data.js';
 import { h, googleLinks, socialLinks, waNumber } from './ui.js';
 import { t, L, getLang, setLang, locale, TAGS, ALLERGEN_TAGS } from './i18n.js';
 
@@ -24,23 +24,24 @@ const rates = () => {
   return manual ? { usd: m.usd || auto.usd, eur: m.eur || auto.eur } : { usd: auto.usd || m.usd, eur: auto.eur || m.eur };
 };
 const curAvail = () => {
-  const r = rates().usd > 0, e = r && rates().eur > 0;
-  return ['usd', ...(r ? ['bs'] : []), ...(e ? ['eur'] : [])];
+  const r = rates();
+  return ['usd', ...(r.usd > 0 ? ['bs'] : []), ...(r.eur > 0 ? ['bse'] : [])];
 };
 const curNow = () => (curAvail().includes(state.cur) ? state.cur : 'usd');
 function priceIn(usd, cur = curNow()) {
   const r = rates();
+  // El precio (en $) se multiplica por la tasa BCV elegida: dólar o euro.
   if (cur === 'bs') return fmtBs(usd, r.usd, locale()) || fmtUsd(usd);
-  if (cur === 'eur') return fmtEur(usd, r.usd, r.eur, locale()) || fmtUsd(usd);
+  if (cur === 'bse') return fmtBs(usd, r.eur, locale()) || fmtUsd(usd);
   return fmtUsd(usd);
 }
 function renderCur() {
   const opts = curAvail(), box = $('cur-btns'); box.replaceChildren();
   $('cur-toggle').hidden = opts.length < 2;
   if (opts.length < 2) $('cur').hidden = true;
-  $('cur-now').textContent = { usd: '$', bs: 'Bs.', eur: '€' }[curNow()];
+  $('cur-now').textContent = { usd: '$', bs: 'Bs. $', bse: 'Bs. €' }[curNow()];
   $('cur-toggle').setAttribute('aria-label', t('see_prices'));
-  const label = { usd: '$ ' + t('cur_usd'), bs: 'Bs. ' + t('cur_bs'), eur: '€ ' + t('cur_eur') };
+  const label = { usd: '$ ' + t('cur_usd'), bs: t('cur_bs'), bse: t('cur_bse') };
   for (const k of opts) box.append(h('button', { type: 'button', class: 'chip chip-sm', 'aria-pressed': String(curNow() === k), onclick: () => {
     state.cur = k; store.set('rm_cur', k); $('cur').hidden = true; $('cur-toggle').setAttribute('aria-expanded', 'false'); renderCur(); renderHighlights(); renderList(); renderCartBar(); if ($('cart-dlg').open) renderCartDialog();
   } }, label[k]));
@@ -252,7 +253,7 @@ function buildOrder() {
   out.push('');
   for (const { d, q } of lines) out.push(`${q} x ${nameOf(d)} — ${fmtUsd(unitPrice(d) * q)}`);
   out.push('');
-  const bs = fmtBs(total, rates().usd, locale());
+  const bs = fmtBs(total, curNow() === 'bse' ? rates().eur : rates().usd, locale());
   out.push(`*${t('order_msg_total')}: ${fmtUsd(total)}*${bs ? ` (${bs})` : ''}`);
   if (notes) out.push('', `${t('order_msg_notes')}: ${notes}`);
   return { url: `https://wa.me/${waNumber(s.whatsapp)}?text=${encodeURIComponent(out.join('\n'))}`, total };
