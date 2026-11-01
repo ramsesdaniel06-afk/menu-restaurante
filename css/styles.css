@@ -126,11 +126,11 @@ button { font-family: inherit; }
 .empty p + p { margin-top: 6px; }
 
 /* ---------- Carrusel ---------- */
-.ph { position: relative; aspect-ratio: 1 / 1; margin: 10px 10px 0; border-radius: 16px; overflow: hidden; background: var(--peach); }
+.ph { position: relative; aspect-ratio: 1 / 1; margin: 0; border-radius: 0; overflow: hidden; background: var(--peach); }
 .ph-empty { display: grid; place-items: center; font: 600 3.5rem var(--serif); color: var(--on-accent); background: linear-gradient(135deg, var(--peach), var(--lav)); }
-.track { display: flex; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
+.track { display: flex; position: absolute; inset: 0; width: 100%; height: 100%; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; }
 .track::-webkit-scrollbar { display: none; }
-.track img { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: start; }
+.track img { flex: 0 0 100%; width: 100%; min-width: 0; height: 100%; max-height: none; align-self: stretch; object-fit: cover; object-position: center; scroll-snap-align: start; }
 .nav { position: absolute; top: 50%; translate: 0 -50%; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: var(--strong); font-size: 1.5rem; line-height: 1; cursor: pointer; display: grid; place-items: center; box-shadow: 0 2px 10px rgba(80,40,60,.2); padding-bottom: 3px; }
 .nav.prev { left: 8px; } .nav.next { right: 8px; }
 .nav:hover { background: var(--accent); }
@@ -144,7 +144,7 @@ button { font-family: inherit; }
 .dish-daily .dish-body { padding: 16px 18px 14px; }
 @media (min-width: 760px) {
   .dish-daily { flex-direction: row; flex-wrap: wrap; }
-  .dish-daily .ph { flex: 0 0 44%; aspect-ratio: auto; min-height: 280px; margin: 12px; }
+  .dish-daily .ph { flex: 0 0 44%; aspect-ratio: auto; min-height: 280px; margin: 0; }
   .dish-daily .dish-body { flex: 1; padding: 24px 28px; justify-content: center; }
   .dish-daily .cart-ctl { flex-basis: 100%; }
   .dish-daily h3 { font-size: 1.3rem; }
