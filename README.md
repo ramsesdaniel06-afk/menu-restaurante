@@ -68,3 +68,17 @@ Los precios en Bs. se calculan solos a partir del precio en $. Con tasa 0, solo 
 ## Acceso al panel
 El menú público ya no muestra ningún enlace al panel. Entra escribiendo `/admin` al final de tu dirección (en Vercel; en local, `/admin.html`).
 El panel tiene `noindex` y `robots.txt` lo oculta a Google; solo las cuentas de la tabla `admins` pueden editar.
+
+## Versión 3: vender más y trabajar mejor
+
+**Importante:** antes de usar lo nuevo, ejecuta `supabase/migracion-v3.sql` en Supabase (SQL Editor → pegar → Run). Es seguro repetirlo.
+
+- **Extras y opciones** por platillo (término de la carne, "agregar queso +$1.50"…): se editan en el platillo, el cliente los elige al agregar y llegan en el mensaje de WhatsApp.
+- **Pedido**: nombre obligatorio, teléfono opcional, forma de pago (si la configuras), y solo los tipos de pedido que actives (aquí / llevar / domicilio).
+- **Ventas sugeridas**: marca platillos con "Sugerirlo al hacer el pedido" y aparecen en "¿Agregas algo más?".
+- **Combos y ofertas por horario**: etiqueta "Combo", días y franjas en que se sirve, y horario propio para el precio de oferta. El aviso de promoción también puede limitarse a ciertos días.
+- **Horario por día**: el menú muestra "Abierto ahora · cierra a las 10:00 pm" o cuándo abren. Se configura en *Restaurante*.
+- **Menú por horario**: desayuno, almuerzo y cena; cada platillo aparece en su franja y el cliente puede tocar "Ver todo el menú".
+- **Equipo**: pestaña *Equipo* (solo dueño). Dueño = todo; Gerente = todo menos equipo y restaurar copias; Empleado = solo marcar agotados.
+- **Copias**: pestaña *Copias e impresión* para descargar todo (.json), exportar platillos a Excel (.csv) y restaurar.
+- **Menú imprimible**: `imprimir.html`, en blanco y negro, para imprimir o guardar como PDF.

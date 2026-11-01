@@ -1,6 +1,6 @@
 // Service worker: el menú abre rápido y muestra lo último visto si no hay internet.
-const VER = 'menu-v5';
-const SHELL = ['./', 'index.html', 'css/styles.css', 'js/menu.js', 'js/data.js', 'js/ui.js', 'js/i18n.js', 'js/config.js', 'icons/icon-192.png'];
+const VER = 'menu-v6';
+const SHELL = ['./', 'index.html', 'css/styles.css', 'js/menu.js', 'js/data.js', 'js/ui.js', 'js/i18n.js', 'js/schedule.js', 'js/config.js', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VER).then(c => c.addAll(SHELL).catch(() => {})).then(() => self.skipWaiting()));

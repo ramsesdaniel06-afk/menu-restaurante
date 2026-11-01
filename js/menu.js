@@ -1,11 +1,17 @@
-import { loadMenu, getAutoRates, fmtUsd, fmtBs, unitPrice, onSale, isDemo, track } from './data.js';
+import { loadMenu, getAutoRates, fmtUsd, fmtBs, unitPrice, onSale, pickedOptions, isDemo, track } from './data.js';
+import { clock, availability, currentDaypart, openStatus, weekLines, fmtHM, parseHM, DEFAULT_DAYPARTS, DAYS_ES, DAYS_EN } from './schedule.js';
 import { h, googleLinks, socialLinks, waNumber } from './ui.js';
 import { t, L, getLang, setLang, locale, TAGS, ALLERGEN_TAGS } from './i18n.js';
 
 const $ = id => document.getElementById(id);
-const state = { settings: {}, cats: [], dishes: [], cur: 'usd', cat: 'all', sort: 'menu', q: '', filters: new Set(), offline: false, mesa: '' };
+const state = { settings: {}, cats: [], dishes: [], cur: 'usd', cat: 'all', sort: 'menu', q: '', filters: new Set(), offline: false, mesa: '', showAll: false };
 const byId = new Map();
-const cart = new Map(); // id -> cantidad
+const cart = new Map(); // clave de línea -> { id, qty, sel }  (sel = extras elegidos, p. ej. ['0:1'])
+const avail = d => availability(d, state.settings, state.showAll);
+const visible = d => avail(d) !== 'hidden';
+const lineKey = (id, sel) => (sel.length ? `${id}|${[...sel].sort().join(',')}` : id);
+const linePrice = (d, sel) => unitPrice(d) + pickedOptions(d, sel).extra;
+const dishQty = id => [...cart.values()].filter(l => l.id === id).reduce((a, l) => a + l.qty, 0);
 
 /* ---------- almacenamiento seguro ---------- */
 const store = {
@@ -93,18 +99,59 @@ const io = 'IntersectionObserver' in window ? new IntersectionObserver(entries =
 }, { threshold: 0.6 }) : null;
 
 /* ---------- Tarjeta de platillo ---------- */
-function stepper(id) {
-  const q = cart.get(id) || 0;
+function stepper(key) {
+  const q = cart.get(key)?.qty || 0;
   return h('div', { class: 'stepper', role: 'group', 'aria-label': `${q} ${t('in_cart')}` },
-    h('button', { type: 'button', 'aria-label': t('less'), onclick: () => setQty(id, q - 1) }, '−'),
+    h('button', { type: 'button', 'aria-label': t('less'), onclick: () => setQty(key, q - 1) }, '−'),
     h('output', { 'aria-live': 'polite' }, String(q)),
-    h('button', { type: 'button', 'aria-label': t('more'), onclick: () => setQty(id, q + 1) }, '+'));
+    h('button', { type: 'button', 'aria-label': t('more'), onclick: () => setQty(key, q + 1) }, '+'));
 }
 function renderCtl(el) {
   const id = el.dataset.dish, d = byId.get(id);
   el.replaceChildren();
-  if (!d || !orderingOn() || d.sold_out) return;
-  el.append((cart.get(id) || 0) > 0 ? stepper(id) : h('button', { type: 'button', class: 'btn-add', onclick: () => setQty(id, 1) }, t('add')));
+  if (!d || !orderingOn() || d.sold_out || avail(d) === 'later') return;
+  if (d.options?.length) {
+    const n = dishQty(id);
+    el.append(h('button', { type: 'button', class: 'btn-add', onclick: () => openOptions(d) }, t('add'), n ? h('span', { class: 'in-cart-n', text: ` · ${n}` }) : null));
+    return;
+  }
+  el.append((cart.get(id)?.qty || 0) > 0 ? stepper(id) : h('button', { type: 'button', class: 'btn-add', onclick: () => setQty(id, 1) }, t('add')));
+}
+
+/* ---------- Extras y opciones ---------- */
+const optDlg = () => $('opt-dlg');
+const optSt = { d: null, sel: new Set(), qty: 1 };
+function optTotal() { return (linePrice(optSt.d, [...optSt.sel])) * optSt.qty; }
+function openOptions(d, then) {
+  Object.assign(optSt, { d, sel: new Set(), qty: 1, then });
+  $('opt-t').textContent = nameOf(d); $('opt-err').hidden = true;
+  const box = $('opt-groups'); box.replaceChildren();
+  d.options.forEach((g, gi) => {
+    const kind = g.multi ? 'checkbox' : 'radio';
+    box.append(h('fieldset', { class: 'opt-g' },
+      h('legend', {}, L(g, 'name'), h('small', { text: ` · ${g.required ? t('opt_required') + ' · ' : ''}${g.multi ? t('opt_many') : t('opt_one')}` })),
+      g.items.map((it, ii) => {
+        const key = `${gi}:${ii}`;
+        return h('label', { class: 'opt-i' },
+          h('input', { type: kind, name: 'og' + gi, value: key, onchange: e => {
+            if (!g.multi) for (const k of [...optSt.sel]) if (k.startsWith(gi + ':')) optSt.sel.delete(k);
+            e.target.checked ? optSt.sel.add(key) : optSt.sel.delete(key);
+            $('opt-err').hidden = true; renderOptFoot();
+          } }),
+          h('span', { class: 'opt-n', text: L(it, 'name') }),
+          Number(it.price) > 0 ? h('span', { class: 'opt-p', text: '+' + fmtUsd(it.price) }) : null);
+      })));
+  });
+  renderOptFoot();
+  optDlg().showModal();
+}
+function renderOptFoot() {
+  $('opt-add').textContent = t('opt_add');
+  $('opt-total').textContent = priceIn(optTotal());
+  $('opt-step').replaceChildren(h('div', { class: 'stepper', role: 'group' },
+    h('button', { type: 'button', 'aria-label': t('less'), onclick: () => { optSt.qty = Math.max(1, optSt.qty - 1); renderOptFoot(); } }, '−'),
+    h('output', {}, String(optSt.qty)),
+    h('button', { type: 'button', 'aria-label': t('more'), onclick: () => { optSt.qty = Math.min(99, optSt.qty + 1); renderOptFoot(); } }, '+')));
 }
 
 function card(d, { rail = false, daily = false } = {}) {
@@ -113,10 +160,13 @@ function card(d, { rail = false, daily = false } = {}) {
   const badges = [];
   if (d.daily && !daily) badges.push(h('span', { class: 'badge badge-daily' }, t('badge_daily')));
   if (d.featured && !rail) badges.push(h('span', { class: 'badge' }, t('badge_house')));
+  if (d.is_combo) badges.push(h('span', { class: 'badge badge-combo' }, t('badge_combo')));
   if (sale) badges.push(h('span', { class: 'badge badge-offer' }, t('badge_offer')));
   const photo = carousel(d);
+  const later = avail(d) === 'later';
   if (d.sold_out) photo.append(h('span', { class: 'soldout' }, t('badge_soldout')));
-  const el = h('article', { class: 'dish' + (daily ? ' dish-daily' : '') + (d.sold_out ? ' is-soldout' : ''), 'data-dish': d.id },
+  else if (later) photo.append(h('span', { class: 'soldout' }, t('dp_later', { name: d.dayparts.map(k => t('dp_' + k)).join(' / ') })));
+  const el = h('article', { class: 'dish' + (daily ? ' dish-daily' : '') + ((d.sold_out || later) ? ' is-soldout' : ''), 'data-dish': d.id },
     photo,
     badges.length ? h('div', { class: 'badges' }, badges) : null,
     h('div', { class: 'dish-body' },
@@ -152,7 +202,7 @@ const filtering = () => state.q.trim() !== '' || state.filters.size > 0;
 
 function renderChips() {
   const chips = $('chips'); chips.replaceChildren();
-  const active = state.dishes.filter(d => d.active);
+  const active = state.dishes.filter(visible);
   const used = new Set(active.map(d => d.category_id));
   const mk = (id, label) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(state.cat === id), onclick: () => { state.cat = id; renderChips(); renderList(); renderHighlights(); const beh = reduceMotion() ? 'auto' : 'smooth'; id === 'all' ? scrollTo({ top: 0, behavior: beh }) : $('menu').scrollIntoView({ behavior: beh }); } }, label);
   chips.append(mk('all', t('all')), ...state.cats.filter(c => used.has(c.id)).map(c => mk(c.id, L(c, 'name'))));
@@ -172,9 +222,9 @@ function renderChips() {
 
 function renderList() {
   const list = $('list'); list.replaceChildren();
-  const items = state.dishes.filter(d => d.active && matches(d));
+  const items = state.dishes.filter(d => visible(d) && matches(d));
   if (!items.length) {
-    const any = state.dishes.some(d => d.active);
+    const any = state.dishes.some(visible);
     list.append(h('div', { class: 'empty' },
       h('p', { text: filtering() ? t('no_results') : any ? t('empty_cat') : t('preparing') }),
       filtering() ? h('p', { class: 'muted', text: t('no_results_hint') }) : null,
@@ -197,25 +247,35 @@ function renderList() {
 
 function renderHighlights() {
   const hide = filtering() || state.cat !== 'all';
-  const daily = hide ? null : state.dishes.find(d => d.active && d.daily);
+  const daily = hide ? null : state.dishes.find(d => d.daily && avail(d) === 'now');
   $('dia').hidden = !daily;
   $('dia-card').replaceChildren(...(daily ? [card(daily, { daily: true })] : []));
-  const featured = hide ? [] : state.dishes.filter(d => d.active && d.featured);
+  const featured = hide ? [] : state.dishes.filter(d => d.featured && avail(d) === 'now');
   $('casa').hidden = !featured.length;
   $('rail').replaceChildren(...featured.map(d => card(d, { rail: true })));
 }
 
 /* ---------- Carrito y pedido por WhatsApp ---------- */
-const cartLines = () => [...cart].map(([id, q]) => ({ d: byId.get(id), q })).filter(x => x.d);
-const cartTotal = () => cartLines().reduce((s, x) => s + unitPrice(x.d) * x.q, 0);
+const cartLines = () => [...cart].map(([key, l]) => ({ key, d: byId.get(l.id), q: l.qty, sel: l.sel })).filter(x => x.d);
+const cartTotal = () => cartLines().reduce((s, x) => s + linePrice(x.d, x.sel) * x.q, 0);
 const cartCount = () => cartLines().reduce((s, x) => s + x.q, 0);
+const saveCart = () => store.set('rm_cart_v3', JSON.stringify([...cart.values()]));
+const refreshCtls = id => document.querySelectorAll(`.cart-ctl[data-dish="${CSS.escape(id)}"]`).forEach(renderCtl);
 
-function setQty(id, q) {
+function setQty(key, q) {
+  const l = cart.get(key); if (!l && !byId.has(key)) return;
   q = Math.max(0, Math.min(99, q));
-  q ? cart.set(id, q) : cart.delete(id);
-  store.set('rm_cart_v2', JSON.stringify(Object.fromEntries(cart)));
-  document.querySelectorAll(`.cart-ctl[data-dish="${CSS.escape(id)}"]`).forEach(renderCtl);
+  if (l) { q ? (l.qty = q) : cart.delete(key); }
+  else if (q) cart.set(key, { id: key, qty: q, sel: [] });
+  saveCart();
+  refreshCtls(l ? l.id : key);
   renderCartBar();
+  if ($('cart-dlg').open) renderCartDialog();
+}
+function addLine(d, sel, qty) {
+  const key = lineKey(d.id, sel), l = cart.get(key);
+  l ? (l.qty = Math.min(99, l.qty + qty)) : cart.set(key, { id: d.id, qty: Math.min(99, qty), sel });
+  saveCart(); refreshCtls(d.id); renderCartBar();
   if ($('cart-dlg').open) renderCartDialog();
 }
 
@@ -236,6 +296,18 @@ function renderCartBar() {
 }
 
 function currentType() { return document.querySelector('input[name=otype]:checked')?.value || 'dine_in'; }
+const orderModes = () => { const m = String(state.settings.order_modes || 'dine_in,takeaway,delivery').split(',').map(x => x.trim()).filter(x => ['dine_in', 'takeaway', 'delivery'].includes(x)); return m.length ? m : ['dine_in', 'takeaway', 'delivery']; };
+const payMethods = () => String(state.settings.payment_methods || '').split(',').map(x => x.trim()).filter(Boolean);
+function syncModes() {
+  const modes = orderModes();
+  document.querySelectorAll('input[name=otype]').forEach(r => { r.closest('label').hidden = !modes.includes(r.value); });
+  if (!modes.includes(currentType())) document.querySelector(`input[name=otype][value=${modes[0]}]`).checked = true;
+  document.querySelector('fieldset.seg').hidden = modes.length < 2;
+  const pays = payMethods(), sel = $('o-pay'), prev = sel.value;
+  $('o-pay-wrap').hidden = !pays.length;
+  sel.replaceChildren(h('option', { value: '' }, t('pay_choose')), ...pays.map(x => h('option', { value: x }, x)));
+  if (pays.includes(prev)) sel.value = prev;
+}
 function syncLocation() {
   const ty = currentType();
   $('o-loc-wrap').hidden = ty === 'takeaway';
@@ -244,14 +316,19 @@ function syncLocation() {
 }
 function buildOrder() {
   const s = state.settings, lines = cartLines(), total = cartTotal();
-  const type = currentType(), name = $('o-name').value.trim(), loc = $('o-loc').value.trim(), notes = $('o-notes').value.trim();
+  const type = currentType(), name = $('o-name').value.trim(), phone = $('o-phone').value.trim(), loc = $('o-loc').value.trim(), notes = $('o-notes').value.trim(), pay = $('o-pay').value;
   const out = [t('order_msg_hello'), '', `*${t('order_msg_title')} — ${s.name}*`];
   if (name) out.push(`${t('order_msg_client')}: ${name}`);
+  if (phone) out.push(`${t('order_msg_phone')}: ${phone}`);
   out.push(`${t('order_msg_type')}: ${t(type)}`);
   if (type === 'dine_in' && loc) out.push(`${t('order_msg_table')}: ${loc}`);
   if (type === 'delivery' && loc) out.push(`${t('order_msg_address')}: ${loc}`);
+  if (pay) out.push(`${t('order_msg_pay')}: ${pay}`);
   out.push('');
-  for (const { d, q } of lines) out.push(`${q} x ${nameOf(d)} — ${fmtUsd(unitPrice(d) * q)}`);
+  for (const { d, q, sel } of lines) {
+    out.push(`${q} x ${nameOf(d)} — ${fmtUsd(linePrice(d, sel) * q)}`);
+    for (const it of pickedOptions(d, sel).items) out.push(`   + ${L(it, 'name')}${it.price > 0 ? ` (+${fmtUsd(it.price)})` : ''}`);
+  }
   out.push('');
   const bs = fmtBs(total, curNow() === 'bse' ? rates().eur : rates().usd, locale());
   out.push(`*${t('order_msg_total')}: ${fmtUsd(total)}*${bs ? ` (${bs})` : ''}`);
@@ -260,21 +337,39 @@ function buildOrder() {
 }
 function updateSend() { if (cart.size) { $('o-send').href = buildOrder().url; $('cart-sum-total').textContent = money(cartTotal()); } }
 
+function renderSuggest() {
+  const box = $('cart-suggest'), inCart = new Set(cartLines().map(x => x.d.category_id));
+  const cands = state.dishes.filter(d => d.suggest && avail(d) === 'now' && !d.sold_out && dishQty(d.id) === 0)
+    .sort((a, b) => (inCart.has(a.category_id) ? 1 : 0) - (inCart.has(b.category_id) ? 1 : 0)).slice(0, 3);
+  box.hidden = !cands.length; box.replaceChildren();
+  if (!cands.length) return;
+  box.append(h('h3', { text: t('suggest_title') }), ...cands.map(d => h('div', { class: 'suggest-row' },
+    d.photos[0] ? h('img', { src: d.photos[0].url, alt: '', loading: 'lazy' }) : h('span', { class: 'suggest-ph', 'aria-hidden': 'true' }, nameOf(d).slice(0, 1)),
+    h('div', { class: 'suggest-main' }, h('strong', { text: nameOf(d) }), h('span', { class: 'muted', text: priceIn(unitPrice(d)) })),
+    h('button', { type: 'button', class: 'btn btn-soft', onclick: () => (d.options?.length ? openOptions(d) : addLine(d, [], 1)) }, t('add')))));
+}
+
 function renderCartDialog() {
   const items = $('cart-items'); items.replaceChildren();
   const lines = cartLines(), empty = !lines.length;
   $('cart-form').hidden = empty; $('cart-foot').hidden = empty;
   if (empty) {
+    $('cart-suggest').hidden = true; $('cart-closed').hidden = true;
     items.append(h('div', { class: 'empty' }, h('p', { text: t('order_empty') }), h('p', { class: 'muted', text: t('order_empty_hint') })));
     return;
   }
-  for (const { d, q } of lines) {
+  for (const { key, d, q, sel } of lines) {
+    const picked = pickedOptions(d, sel).items;
     items.append(h('div', { class: 'cart-row' },
-      h('div', { class: 'cart-row-main' }, h('strong', { text: nameOf(d) }), h('span', { class: 'muted', text: fmtUsd(unitPrice(d)) })),
-      stepper(d.id),
-      h('b', { class: 'cart-row-total', text: fmtUsd(unitPrice(d) * q) })));
+      h('div', { class: 'cart-row-main' }, h('strong', { text: nameOf(d) }),
+        picked.length ? h('span', { class: 'cart-extras', text: picked.map(x => L(x, 'name')).join(' · ') }) : null,
+        h('span', { class: 'muted', text: fmtUsd(linePrice(d, sel)) })),
+      stepper(key),
+      h('b', { class: 'cart-row-total', text: fmtUsd(linePrice(d, sel) * q) })));
   }
-  syncLocation(); updateSend();
+  const st = openStatus(state.settings.hours_week);
+  $('cart-closed').hidden = !(st && !st.open); $('cart-closed').textContent = t('closed_note');
+  syncModes(); renderSuggest(); syncLocation(); updateSend();
 }
 function openCart() { renderCartDialog(); $('cart-dlg').showModal(); }
 
@@ -302,7 +397,28 @@ function renderFooter() {
     const fmt = n => Number(n).toLocaleString(locale(), { minimumFractionDigits: 2 });
     $('f-rate').textContent = t('rate_note', { rate: fmt(r.usd), date: date || '—', eur: r.eur > 0 ? t('eur_part', { rate: fmt(r.eur) }) : '' });
   } else $('f-rate').textContent = '';
+  const lines = weekLines(s.hours_week, getLang(), t('closed_word')), fh = $('f-hours');
+  const free = lines.length ? lines : (L(s, 'hours') ? [L(s, 'hours')] : []);
+  fh.hidden = !free.length; fh.replaceChildren(h('strong', { text: t('hours_title') }), ...free.map(x => h('p', { text: x })));
   $('f-demo').hidden = !isDemo; $('f-demo').textContent = t('demo_note');
+}
+function openText(st) {
+  if (st.open) return t('open_now', { time: fmtHM(st.closes) });
+  const n = st.next;
+  if (!n) return t('closed_none');
+  const time = fmtHM(n.at);
+  if (n.days === 0) return t('closed_today', { time });
+  if (n.days === 1) return t('closed_tomorrow', { time });
+  return t('closed_day', { day: (getLang() === 'en' ? DAYS_EN : DAYS_ES)[n.dow], time });
+}
+function renderDaypart() {
+  const s = state.settings, cur = currentDaypart(s);
+  const box = $('daypart');
+  box.hidden = !(s.dayparts_on && cur && state.dishes.some(d => d.active && d.dayparts?.length));
+  if (box.hidden) return;
+  const [f, to] = { ...DEFAULT_DAYPARTS, ...(s.dayparts || {}) }[cur];
+  $('dp-text').textContent = `${t('dp_now', { name: t('dp_' + cur) })} (${fmtHM(parseHM(f))} – ${fmtHM(parseHM(to))})`;
+  $('dp-toggle').textContent = state.showAll ? t('dp_only') : t('dp_all');
 }
 function renderHero() {
   const s = state.settings;
@@ -311,17 +427,19 @@ function renderHero() {
   const mark = $('brand-mark');
   if (s.logo_url) { mark.className = 'brand-mark has-logo'; mark.replaceChildren(h('img', { src: s.logo_url, alt: '' })); }
   else { mark.className = 'brand-mark'; mark.textContent = String(s.name || 'M').trim().slice(0, 1).toUpperCase(); }
-  const hrs = L(s, 'hours');
+  const hrs = L(s, 'hours'), st = openStatus(s.hours_week);
   $('r-tagline').textContent = L(s, 'tagline');
   const tg = L(s, 'tagline'); $('r-tag').textContent = tg; $('r-tag').hidden = !tg;
-  $('r-hours').textContent = hrs; $('hoursbar').hidden = !hrs;
+  $('r-hours').textContent = st ? openText(st) : hrs; $('hoursbar').hidden = !(st || hrs);
+  $('hoursbar').classList.toggle('is-open', !!st?.open); $('hoursbar').classList.toggle('is-closed', !!st && !st.open);
   $('table-chip').hidden = !state.mesa; $('table-chip').textContent = state.mesa ? t('table_banner', { n: state.mesa }) : '';
   $('lang').textContent = getLang() === 'es' ? 'EN' : 'ES';
 }
 function renderPromo() {
   const s = state.settings, text = L(s, 'promo_text').trim();
   const dismissed = session.get('rm_promo_x') === text;
-  $('promo').hidden = !(s.promo_active && text && !dismissed);
+  const days = s.promo_days || [];
+  $('promo').hidden = !(s.promo_active && text && !dismissed && (!days.length || days.includes(clock().dow)));
   $('promo-text').textContent = text;
 }
 
@@ -338,12 +456,13 @@ function applyStatic() {
   $('promo-x').setAttribute('aria-label', t('dismiss'));
   $('cart-close').setAttribute('aria-label', t('close'));
   $('chips').setAttribute('aria-label', t('cats'));
+  $('opt-close').setAttribute('aria-label', t('close'));
   $('wa-float').setAttribute('aria-label', 'WhatsApp');
   $('offline').hidden = !state.offline; $('offline').textContent = t('offline');
 }
 
 function renderAll() {
-  applyStatic(); renderCur(); renderHero(); renderPromo(); renderHighlights(); renderChips(); renderList();
+  applyStatic(); renderCur(); renderHero(); renderPromo(); renderDaypart(); renderHighlights(); renderChips(); renderList();
   renderContact(); renderFooter(); renderCartBar();
   const g = googleLinks(state.settings); $('g-write').href = g.write; $('g-read').href = g.reviews;
   if ($('cart-dlg').open) renderCartDialog();
@@ -362,8 +481,13 @@ async function init() {
   state.mesa = session.get('rm_mesa') || '';
   if (state.mesa) { $('o-loc').value = state.mesa; }
 
-  try { for (const [id, q] of Object.entries(JSON.parse(store.get('rm_cart_v2') || '{}'))) { const d = byId.get(id); if (d && d.active && !d.sold_out && q > 0) cart.set(id, Math.min(99, q)); } } catch { /* carrito corrupto */ }
-  $('o-name').value = store.get('rm_oname') || '';
+  try {
+    for (const l of JSON.parse(store.get('rm_cart_v3') || '[]')) {
+      const d = byId.get(l.id), sel = Array.isArray(l.sel) ? l.sel : [];
+      if (d && d.active && !d.sold_out && l.qty > 0 && sel.every(k => { const [g, i] = String(k).split(':').map(Number); return d.options?.[g]?.items?.[i]; })) cart.set(lineKey(d.id, sel), { id: d.id, qty: Math.min(99, l.qty), sel });
+    }
+  } catch { /* carrito corrupto */ }
+  $('o-name').value = store.get('rm_oname') || ''; $('o-phone').value = store.get('rm_ophone') || '';
   state.cur = store.get('rm_cur') || 'usd';
 
   // eventos
@@ -387,11 +511,23 @@ async function init() {
   $('cart-dlg').addEventListener('click', e => { if (e.target === $('cart-dlg')) $('cart-dlg').close(); });
   $('cart-clear').addEventListener('click', () => { for (const id of [...cart.keys()]) setQty(id, 0); });
   document.querySelectorAll('input[name=otype]').forEach(r => r.addEventListener('change', () => { syncLocation(); updateSend(); }));
-  for (const id of ['o-name', 'o-loc', 'o-notes']) $(id).addEventListener('input', () => { if (id === 'o-name') store.set('rm_oname', $('o-name').value); updateSend(); });
-  $('o-send').addEventListener('click', () => {
+  for (const id of ['o-name', 'o-phone', 'o-loc', 'o-notes']) $(id).addEventListener('input', () => { if (id === 'o-name') store.set('rm_oname', $('o-name').value); if (id === 'o-phone') store.set('rm_ophone', $('o-phone').value); $('o-err').hidden = true; updateSend(); });
+  $('o-pay').addEventListener('change', updateSend);
+  $('o-send').addEventListener('click', e => {
+    const err = !$('o-name').value.trim() ? ['o-name', t('need_name')] : (currentType() === 'delivery' && !$('o-loc').value.trim() ? ['o-loc', t('need_address')] : null);
+    if (err) { e.preventDefault(); $('o-err').textContent = err[1]; $('o-err').hidden = false; $(err[0]).focus(); return; }
     const { total } = buildOrder();
     for (const { d, q } of cartLines()) track('order_item', { dish_id: d.id, qty: q });
     track('order_sent', { meta: total.toFixed(2) });
+  });
+  $('dp-toggle').addEventListener('click', () => { state.showAll = !state.showAll; renderDaypart(); renderHighlights(); renderChips(); renderList(); });
+  $('opt-close').addEventListener('click', () => optDlg().close());
+  optDlg().addEventListener('click', e => { if (e.target === optDlg()) optDlg().close(); });
+  $('opt-add').addEventListener('click', () => {
+    const d = optSt.d, sel = [...optSt.sel];
+    const missing = d.options.findIndex((g, gi) => g.required && !sel.some(k => k.startsWith(gi + ':')));
+    if (missing >= 0) { $('opt-err').textContent = t('opt_missing', { name: L(d.options[missing], 'name') }); $('opt-err').hidden = false; return; }
+    addLine(d, sel, optSt.qty); optDlg().close();
   });
   $('g-read').addEventListener('click', () => track('click_review_read'));
   $('g-write').addEventListener('click', () => track('click_review_write'));
@@ -399,6 +535,10 @@ async function init() {
 
   renderAll();
   getAutoRates().then(v => { Object.assign(auto, v); renderCur(); renderHighlights(); renderList(); renderFooter(); renderCartBar(); }).catch(() => {});
+  // Cada minuto se revisan horarios, ofertas y franjas del menú; solo se vuelve a dibujar si algo cambió.
+  const sig = () => JSON.stringify([openStatus(state.settings.hours_week), currentDaypart(state.settings), clock().dow, state.dishes.map(d => onSale(d) + avail(d))]);
+  let last = sig();
+  setInterval(() => { const n = sig(); if (n !== last) { last = n; renderAll(); } }, 60000);
   if (!session.get('rm_visit')) { session.set('rm_visit', '1'); track('visit', { meta: state.mesa ? `mesa:${state.mesa}` : null }); }
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 }

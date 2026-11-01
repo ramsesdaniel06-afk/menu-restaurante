@@ -1,5 +1,6 @@
 // Capa de datos: Supabase real, o modo demostración (localStorage) si config.js está vacío.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { saleActive, setTz } from './schedule.js';
 
 export const isDemo = !SUPABASE_URL || !SUPABASE_ANON_KEY;
 const BUCKET = 'dishes';
@@ -16,9 +17,19 @@ export function fmtEur(usd, usdRate, eurRate, locale = 'es-VE') {
   if (!(Number(usdRate) > 0) || !(Number(eurRate) > 0)) return '';
   return '€' + (Number(usd) * Number(usdRate) / Number(eurRate)).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-/** Precio vigente: el de oferta si existe, si no el normal. */
-export const unitPrice = d => (d.sale_price_usd != null && Number(d.sale_price_usd) >= 0 && Number(d.sale_price_usd) < Number(d.price_usd) ? Number(d.sale_price_usd) : Number(d.price_usd));
-export const onSale = d => unitPrice(d) < Number(d.price_usd);
+/** Precio vigente: el de oferta si existe y está en su horario, si no el normal. */
+export const onSale = d => saleActive(d);
+export const unitPrice = d => (onSale(d) ? Number(d.sale_price_usd) : Number(d.price_usd));
+/** Extras y opciones elegidos: sel = ['0:1', '1:0'] (grupo:ítem). Devuelve { items, extra }. */
+export function pickedOptions(d, sel = []) {
+  const items = [];
+  for (const k of sel) {
+    const [g, i] = String(k).split(':').map(Number);
+    const it = d.options?.[g]?.items?.[i];
+    if (it) items.push({ name: it.name, name_en: it.name_en || '', price: Number(it.price) || 0 });
+  }
+  return { items, extra: items.reduce((a, x) => a + x.price, 0) };
+}
 
 // Reduce y comprime la foto en el navegador antes de subirla.
 export async function compressImage(file, max = 1400, quality = 0.82, mime = 'image/jpeg') {
@@ -41,7 +52,14 @@ async function sb() {
   }
   return _sb;
 }
-const must = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
+const must = ({ data, error }) => {
+  if (error) {
+    const m = String(error.message || '');
+    if (/column|schema cache/i.test(m) && /does not exist|find the/i.test(m)) throw new Error('Falta actualizar la base de datos. Ejecuta el archivo supabase/migracion-v3.sql en Supabase (SQL Editor). Detalle: ' + m);
+    throw new Error(m);
+  }
+  return data;
+};
 
 /* ---------- Demo: datos de ejemplo ---------- */
 function plate(a, b, c) {
@@ -58,16 +76,17 @@ function seed() {
   const mk = (i, n) => Array.from({ length: n }, (_, k) => { const p = P[(i + k) % P.length]; return { id: uid(), url: plate(...p), path: null, position: k }; });
   // [cat, nombre, name_en, descripción, description_en, precio, etiquetas, extras]
   const rows = [
-    ['c1', 'Tequeños', 'Tequeños', 'Seis deditos de queso blanco en masa crujiente, con salsa de guasacaca.', 'Six white-cheese fingers in crispy dough, with guasacaca sauce.', 6.5, ['vegetariano'], {}],
+    ['c1', 'Tequeños', 'Tequeños', 'Seis deditos de queso blanco en masa crujiente, con salsa de guasacaca.', 'Six white-cheese fingers in crispy dough, with guasacaca sauce.', 6.5, ['vegetariano'], { suggest: true, options: [{ name: 'Salsa extra', name_en: 'Extra sauce', multi: true, required: false, items: [{ name: 'Guasacaca', name_en: 'Guasacaca', price: 0.5 }, { name: 'Ajo', name_en: 'Garlic', price: 0.5 }] }] }],
     ['c1', 'Ceviche de pescado', 'Fish ceviche', 'Pesca del día curada en limón, cebolla morada, cilantro y ají dulce.', 'Catch of the day cured in lime with red onion, cilantro and sweet pepper.', 9, ['sin_gluten', 'sin_lactosa', 'picante'], { featured: true }],
     ['c1', 'Empanadas surtidas', 'Assorted empanadas', 'Tres empanadas: carne mechada, queso y cazón.', 'Three empanadas: shredded beef, cheese and dogfish shark.', 5, [], {}],
     ['c2', 'Pabellón criollo', 'Pabellón criollo', 'Carne mechada, caraotas negras, arroz blanco y tajadas de plátano maduro.', 'Shredded beef, black beans, white rice and fried ripe plantain.', 12, ['sin_gluten', 'sin_lactosa'], { daily: true }],
     ['c2', 'Pescado frito con tostones', 'Fried fish with tostones', 'Pargo entero frito, tostones, ensalada y salsa de ajo.', 'Whole fried snapper, twice-fried plantain, salad and garlic sauce.', 16, ['sin_gluten'], { featured: true, sale: 13.5 }],
-    ['c2', 'Churrasco', 'Grilled steak', 'Corte de res a la parrilla con yuca sancochada y chimichurri.', 'Grilled beef cut with boiled cassava and chimichurri.', 17, ['sin_gluten', 'sin_lactosa'], {}],
+    ['c2', 'Churrasco', 'Grilled steak', 'Corte de res a la parrilla con yuca sancochada y chimichurri.', 'Grilled beef cut with boiled cassava and chimichurri.', 17, ['sin_gluten', 'sin_lactosa'], { dayparts: ['lunch', 'dinner'], options: [{ name: 'Término de la carne', name_en: 'Doneness', multi: false, required: true, items: [{ name: 'Medio', name_en: 'Medium', price: 0 }, { name: 'Tres cuartos', name_en: 'Medium well', price: 0 }, { name: 'Bien cocido', name_en: 'Well done', price: 0 }] }, { name: 'Agregar', name_en: 'Add', multi: true, required: false, items: [{ name: 'Queso gratinado', name_en: 'Melted cheese', price: 1.5 }, { name: 'Huevo frito', name_en: 'Fried egg', price: 1 }] }] }],
     ['c3', 'Parrilla del puerto', 'Harbor grill', 'Langostinos, calamares, pulpo y pescado a las brasas para compartir.', 'Prawns, squid, octopus and fish over the coals, to share.', 32, ['mariscos', 'sin_gluten'], { featured: true }],
     ['c3', 'Arroz con mariscos', 'Seafood rice', 'Arroz meloso con mejillones, camarones y calamar, sofrito de la casa.', 'Creamy rice with mussels, shrimp and squid in our house sofrito.', 22, ['mariscos', 'picante'], { sold_out: true }],
     ['c3', 'Asado negro', 'Asado negro', 'Lomo cocido lento en papelón y especias, con puré de ñame.', 'Slow-cooked loin in panela and spices, with yam purée.', 15, ['sin_gluten'], { active: false }],
-    ['c4', 'Quesillo', 'Quesillo', 'Flan venezolano de leche condensada, con caramelo oscuro.', 'Venezuelan condensed-milk flan with dark caramel.', 5, ['huevo', 'vegetariano'], {}],
+    ['c4', 'Quesillo', 'Quesillo', 'Flan venezolano de leche condensada, con caramelo oscuro.', 'Venezuelan condensed-milk flan with dark caramel.', 5, ['huevo', 'vegetariano'], { suggest: true }],
+    ['c3', 'Combo familiar', 'Family combo', 'Parrilla del puerto para dos, arroz, ensalada y dos postres.', 'Harbor grill for two, rice, salad and two desserts.', 45, ['mariscos'], { combo: true, days: [0, 6, 5], sale: 39, sale_days: [0], }],
     ['c4', 'Tres leches', 'Tres leches cake', 'Bizcocho empapado en tres leches con merengue ligero.', 'Sponge soaked in three milks with light meringue.', 5.5, ['huevo', 'vegetariano'], {}],
     ['c4', 'Torta de chocolate', 'Chocolate cake', 'Cacao de Chuao, relleno de dulce de leche.', 'Chuao cocoa, filled with dulce de leche.', 6, ['huevo', 'frutos_secos', 'vegetariano'], { featured: true }],
   ];
@@ -78,6 +97,8 @@ function seed() {
     return {
       id: 'd' + (i + 1), category_id, name, name_en, description, description_en, price_usd, tags,
       sale_price_usd: x.sale ?? null, featured: !!x.featured, daily: !!x.daily, sold_out: !!x.sold_out, active: x.active !== false,
+      options: x.options || [], is_combo: !!x.combo, suggest: !!x.suggest, dayparts: x.dayparts || [], avail_days: x.days || [],
+      sale_days: x.sale_days || [], sale_from: x.sale_from || '', sale_to: x.sale_to || '',
       position: catCount[category_id], created_at: new Date(2026, 0, i + 1).toISOString(), photos: mk(i, 2 + (i % 2)),
     };
   });
@@ -89,7 +110,10 @@ function seed() {
       facebook: '', tiktok: '', x_twitter: '', youtube: '', website: '', site_url: '',
       order_enabled: true, promo_active: true, promo_text: '2×1 en postres todos los jueves', promo_text_en: '2-for-1 desserts every Thursday',
       bcv_rate: 0, eur_rate: 0, rates_auto: true, bcv_updated_at: null,
+      hours_week: { 1: ['11:00', '22:00'], 2: ['11:00', '22:00'], 3: ['11:00', '22:00'], 4: ['11:00', '22:00'], 5: ['11:00', '23:00'], 6: ['11:00', '23:00'], 0: ['11:00', '22:00'] },
+      tz: 'America/Caracas', dayparts_on: false, dayparts: {}, promo_days: [], order_modes: 'dine_in,takeaway,delivery', payment_methods: 'Pago móvil, Efectivo, Zelle',
     },
+    admins: [{ user_id: 'u1', email: 'demo@demo', role: 'owner' }],
     categories: cats, dishes, events: [],
   };
 }
@@ -168,6 +192,8 @@ export async function deleteCategory(id) {
 /* ---------- Platillos ---------- */
 const normDish = r => ({
   ...r, price_usd: Number(r.price_usd), tags: r.tags || [],
+  options: Array.isArray(r.options) ? r.options : [], dayparts: r.dayparts || [], avail_days: r.avail_days || [], sale_days: r.sale_days || [],
+  sale_from: r.sale_from || '', sale_to: r.sale_to || '', is_combo: !!r.is_combo, suggest: !!r.suggest,
   sale_price_usd: r.sale_price_usd == null ? null : Number(r.sale_price_usd),
   photos: (r.dish_photos || r.photos || []).slice().sort((a, b) => a.position - b.position),
 });
@@ -195,7 +221,8 @@ export async function deleteDish(id) {
   must(await c.from('dishes').delete().eq('id', id));
 }
 
-const DISH_FIELDS = ['category_id', 'name', 'name_en', 'description', 'description_en', 'price_usd', 'sale_price_usd', 'tags', 'active', 'featured', 'daily', 'sold_out'];
+const DISH_FIELDS = ['category_id', 'name', 'name_en', 'description', 'description_en', 'price_usd', 'sale_price_usd', 'tags', 'active', 'featured', 'daily', 'sold_out',
+  'options', 'is_combo', 'suggest', 'dayparts', 'avail_days', 'sale_days', 'sale_from', 'sale_to'];
 /**
  * Guarda un platillo con sus fotos.
  * photos: lista ordenada de { id?, url, path?, file? } — las que traen `file` son nuevas.
@@ -252,10 +279,11 @@ const SNAP = 'rm_snapshot_v2';
 export async function loadMenu() {
   try {
     const [settings, cats, dishes] = await Promise.all([getSettings(), listCategories(), listDishes()]);
+    setTz(settings.tz);
     if (!isDemo) { try { localStorage.setItem(SNAP, JSON.stringify({ settings, cats, dishes })); } catch { /* sin espacio */ } }
     return { settings, cats, dishes, offline: false };
   } catch (e) {
-    if (!isDemo) { try { const s = JSON.parse(localStorage.getItem(SNAP)); if (s) return { ...s, offline: true }; } catch { /* sin copia */ } }
+    if (!isDemo) { try { const s = JSON.parse(localStorage.getItem(SNAP)); if (s) { setTz(s.settings?.tz); return { ...s, offline: true }; } } catch { /* sin copia */ } }
     throw e;
   }
 }
@@ -306,26 +334,30 @@ export async function getStats(days = 30) {
 }
 
 /* ---------- Autenticación (admin) ---------- */
+/** Devuelve el rol ('owner' | 'manager' | 'staff') o null si la cuenta no es administradora. */
 async function checkAdmin(c, userId) {
-  const { data } = await c.from('admins').select('user_id').eq('user_id', userId).maybeSingle();
-  return !!data;
+  let r = await c.from('admins').select('user_id, role').eq('user_id', userId).maybeSingle();
+  if (r.error) r = await c.from('admins').select('user_id').eq('user_id', userId).maybeSingle(); // base sin migrar: todos son dueños
+  return r.data ? (r.data.role || 'owner') : null;
 }
 export async function getSession() {
-  if (isDemo) return sessionStorage.getItem('rm_demo_admin') ? { email: 'demo@demo' } : null;
+  if (isDemo) return sessionStorage.getItem('rm_demo_admin') ? { email: 'demo@demo', role: sessionStorage.getItem('rm_demo_role') || 'owner' } : null;
   const c = await sb();
   const { data } = await c.auth.getSession();
   const u = data.session?.user;
   if (!u) return null;
-  if (!(await checkAdmin(c, u.id))) { await c.auth.signOut(); return null; }
-  return { email: u.email };
+  const role = await checkAdmin(c, u.id);
+  if (!role) { await c.auth.signOut(); return null; }
+  return { email: u.email, role, id: u.id };
 }
 export async function signIn(email, password) {
   if (isDemo) { sessionStorage.setItem('rm_demo_admin', '1'); return { email: email || 'demo@demo' }; }
   const c = await sb();
   const { data, error } = await c.auth.signInWithPassword({ email, password });
   if (error) throw new Error('Correo o contraseña incorrectos.');
-  if (!(await checkAdmin(c, data.user.id))) { await c.auth.signOut(); throw new Error('Esta cuenta existe, pero no tiene permisos de administrador.'); }
-  return { email: data.user.email };
+  const role = await checkAdmin(c, data.user.id);
+  if (!role) { await c.auth.signOut(); throw new Error('Esta cuenta existe, pero no tiene permisos de administrador.'); }
+  return { email: data.user.email, role, id: data.user.id };
 }
 export async function signOut() {
   if (isDemo) { sessionStorage.removeItem('rm_demo_admin'); return; }
@@ -363,4 +395,54 @@ export async function fetchBcvRate() {
   const v = Number(j.promedio ?? j.venta ?? j.compra);
   if (!v) throw new Error('No se pudo leer la tasa.');
   return v;
+}
+
+
+/* ---------- Equipo (solo el dueño) ---------- */
+export async function teamList() {
+  if (isDemo) return dLoad().admins || [];
+  return must(await (await sb()).rpc('team_list'));
+}
+export async function teamAdd(email, role) {
+  if (isDemo) { const d = dLoad(); d.admins = d.admins || []; const e = String(email).trim().toLowerCase(); const x = d.admins.find(a => a.email === e); if (x) x.role = role; else d.admins.push({ user_id: uid(), email: e, role }); dSave(d); return; }
+  must(await (await sb()).rpc('team_add', { p_email: email, p_role: role }));
+}
+export async function teamRemove(userId) {
+  if (isDemo) { const d = dLoad(); d.admins = (d.admins || []).filter(a => a.user_id !== userId); dSave(d); return; }
+  must(await (await sb()).rpc('team_remove', { p_user: userId }));
+}
+
+/* ---------- Copia de seguridad ---------- */
+const BACKUP_V = 3;
+export async function exportAll() {
+  if (isDemo) {
+    const d = dLoad();
+    return { v: BACKUP_V, at: new Date().toISOString(), settings: d.settings, categories: d.categories,
+      dishes: d.dishes.map(({ photos, ...x }) => x), dish_photos: d.dishes.flatMap(x => (x.photos || []).map(p => ({ ...p, dish_id: x.id }))) };
+  }
+  const c = await sb();
+  const [settings, categories, dishes, dish_photos] = await Promise.all([
+    c.from('settings').select('*').eq('id', 1).single().then(must), c.from('categories').select('*').order('position').then(must),
+    c.from('dishes').select('*').order('position').then(must), c.from('dish_photos').select('*').order('position').then(must)]);
+  return { v: BACKUP_V, at: new Date().toISOString(), settings, categories, dishes, dish_photos };
+}
+/** Restaura desde una copia: agrega o actualiza lo que trae; no borra lo que ya existe. */
+export async function restoreAll(b) {
+  if (!b || !b.settings || !Array.isArray(b.categories) || !Array.isArray(b.dishes)) throw new Error('Este archivo no es una copia válida.');
+  if (isDemo) {
+    const d = dLoad(); const cur = new Map(d.dishes.map(x => [x.id, x]));
+    d.settings = { ...d.settings, ...b.settings };
+    for (const c of b.categories) { const i = d.categories.findIndex(x => x.id === c.id); i >= 0 ? (d.categories[i] = c) : d.categories.push(c); }
+    for (const x of b.dishes) {
+      const photos = (b.dish_photos || []).filter(p => p.dish_id === x.id).map(({ dish_id, ...p }) => p);
+      const rec = { ...x, photos }; cur.has(x.id) ? Object.assign(cur.get(x.id), rec) : d.dishes.push(rec);
+    }
+    dSave(d); return { categories: b.categories.length, dishes: b.dishes.length };
+  }
+  const c = await sb();
+  must(await c.from('settings').upsert({ ...b.settings, id: 1 }));
+  if (b.categories.length) must(await c.from('categories').upsert(b.categories));
+  if (b.dishes.length) must(await c.from('dishes').upsert(b.dishes));
+  if (b.dish_photos?.length) must(await c.from('dish_photos').upsert(b.dish_photos));
+  return { categories: b.categories.length, dishes: b.dishes.length };
 }

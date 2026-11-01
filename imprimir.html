@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Menú para imprimir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ink: #1c1a22; --muted: #5d5868; --line: #cfc9d4; }
+    * { box-sizing: border-box; margin: 0; }
+    body { font-family: 'Poppins', system-ui, sans-serif; color: var(--ink); background: #f3eeee; line-height: 1.45; }
+    .tools { position: sticky; top: 0; z-index: 5; background: #fff; border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: center; }
+    .tools label { display: flex; align-items: center; gap: 6px; font-size: .9rem; min-height: 44px; }
+    .tools input[type=checkbox] { width: 20px; height: 20px; accent-color: #ef939c; }
+    .tools select, .tools button { font: inherit; min-height: 44px; border-radius: 12px; border: 1.5px solid var(--line); padding: 0 14px; background: #fff; }
+    .tools button { background: #f4a9b0; border-color: #f4a9b0; color: #4a2b33; font-weight: 600; cursor: pointer; margin-left: auto; }
+    .sheet { background: #fff; width: min(210mm, 100%); margin: 16px auto; padding: 14mm 14mm 16mm; }
+    header { text-align: center; padding-bottom: 8mm; margin-bottom: 8mm; border-bottom: 2px solid var(--ink); }
+    header h1 { font-size: 2rem; letter-spacing: .04em; text-transform: uppercase; }
+    header p { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+    .cats { columns: 2; column-gap: 12mm; }
+    .cat { break-inside: avoid-column; margin-bottom: 8mm; }
+    .cat h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: .12em; border-bottom: 1px solid var(--ink); padding-bottom: 3px; margin-bottom: 8px; }
+    .dish { break-inside: avoid; margin-bottom: 8px; }
+    .line { display: flex; align-items: baseline; gap: 6px; font-weight: 600; font-size: .95rem; }
+    .line .fill { flex: 1; border-bottom: 1px dotted var(--muted); transform: translateY(-3px); min-width: 12px; }
+    .line .p { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .line .bs { font-weight: 400; color: var(--muted); font-size: .8em; }
+    .desc { font-size: .8rem; color: var(--muted); }
+    .tg { font-size: .7rem; color: var(--muted); letter-spacing: .03em; }
+    .extras { font-size: .75rem; color: var(--muted); }
+    footer { margin-top: 6mm; padding-top: 4mm; border-top: 1px solid var(--line); font-size: .75rem; color: var(--muted); text-align: center; }
+    .nodesc .desc { display: none; }
+    @media (max-width: 600px) { .cats { columns: 1; } .sheet { padding: 20px 16px; } }
+    @media print {
+      @page { size: A4; margin: 0; }
+      body { background: #fff; }
+      .tools { display: none; }
+      .sheet { margin: 0; width: 100%; padding: 14mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="tools">
+    <label><input type="checkbox" id="o-desc" checked> Descripciones</label>
+    <label><input type="checkbox" id="o-extras" checked> Extras</label>
+    <label><input type="checkbox" id="o-bs"> Precios en Bs.</label>
+    <label>Idioma <select id="o-lang"><option value="es">Español</option><option value="en">English</option></select></label>
+    <button type="button" id="o-print">Imprimir / guardar PDF</button>
+  </div>
+  <main class="sheet" id="sheet" aria-live="polite"><p>Cargando…</p></main>
+  <script type="module" src="js/imprimir.js"></script>
+</body>
+</html>

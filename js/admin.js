@@ -2,9 +2,14 @@ import * as api from './data.js';
 import { h, toast } from './ui.js';
 import { sortable } from './sortable.js';
 import { qrSvg, qrPng } from './qr.js';
+import { DAYS_ES_SHORT, WEEK_ORDER, DEFAULT_DAYPARTS, DAYPARTS, parseHM } from './schedule.js';
 
 const $ = id => document.getElementById(id);
-const S = { cats: [], dishes: [], settings: {}, editing: null, photos: [], removed: [] };
+const S = { cats: [], dishes: [], settings: {}, editing: null, photos: [], removed: [], opts: [], role: 'owner', me: '' };
+const DP_LABEL = { breakfast: 'Desayuno', lunch: 'Almuerzo', dinner: 'Cena' };
+const chipBox = (box, items, selected) => box.replaceChildren(...items.map(([v, l]) => h('label', { class: 'tagchk' }, h('input', { type: 'checkbox', value: String(v), checked: selected.map(String).includes(String(v)) ? true : null }), h('span', {}, l))));
+const chipVals = box => [...box.querySelectorAll('input:checked')].map(i => i.value);
+const dayItems = () => WEEK_ORDER.map(d => [d, DAYS_ES_SHORT[d]]);
 const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const TAG_LABELS = {
   picante: 'Picante', vegetariano: 'Vegetariano', vegano: 'Vegano', sin_gluten: 'Sin gluten', sin_lactosa: 'Sin lactosa',
@@ -15,21 +20,31 @@ const TAG_LABELS = {
 async function boot() {
   if (api.isDemo) $('demo-note').hidden = false;
   const session = await api.getSession().catch(() => null);
-  session ? showPanel() : ($('login').hidden = false);
+  session ? showPanel(session) : ($('login').hidden = false);
 }
 $('login-form').addEventListener('submit', async e => {
   e.preventDefault();
   const btn = e.submitter, err = $('login-err');
   err.textContent = ''; btn.disabled = true;
-  try { await api.signIn($('email').value.trim(), $('password').value); $('login').hidden = true; showPanel(); }
+  try { const ses = await api.signIn($('email').value.trim(), $('password').value); $('login').hidden = true; showPanel(ses); }
   catch (ex) { err.textContent = ex.message; }
   btn.disabled = false;
 });
 $('logout').addEventListener('click', async () => { await api.signOut(); location.reload(); });
 
-async function showPanel() {
+async function showPanel(session) {
+  S.role = session?.role || 'owner'; S.me = session?.email || '';
   $('panel').hidden = false;
+  applyRole();
   await loadAll();
+}
+/** Dueño: todo. Gerente: todo menos el equipo y restaurar copias. Empleado: solo marcar agotados. */
+function applyRole() {
+  const r = S.role;
+  const allowed = r === 'staff' ? ['tab-dishes'] : r === 'manager' ? ['tab-dishes', 'tab-stats', 'tab-qr', 'tab-cats', 'tab-settings', 'tab-backup'] : TABS.map(x => x[0]);
+  for (const [t] of TABS) $(t).hidden = !allowed.includes(t);
+  $('new-dish').hidden = r === 'staff';
+  $('bk-restore').hidden = r !== 'owner';
 }
 async function loadAll() {
   try {
@@ -39,12 +54,13 @@ async function loadAll() {
 }
 
 /* ---------- Pestañas ---------- */
-const TABS = [['tab-dishes', 'v-dishes'], ['tab-stats', 'v-stats'], ['tab-qr', 'v-qr'], ['tab-cats', 'v-cats'], ['tab-settings', 'v-settings']];
+const TABS = [['tab-dishes', 'v-dishes'], ['tab-stats', 'v-stats'], ['tab-qr', 'v-qr'], ['tab-cats', 'v-cats'], ['tab-settings', 'v-settings'], ['tab-backup', 'v-backup'], ['tab-team', 'v-team']];
 for (const [tab, view] of TABS) {
   $(tab).addEventListener('click', () => {
     for (const [t, v] of TABS) { $(t).setAttribute('aria-selected', String(t === tab)); $(v).hidden = v !== view; }
     if (tab === 'tab-stats') loadStats();
     if (tab === 'tab-qr') initQr();
+    if (tab === 'tab-team') loadTeam();
   });
 }
 
@@ -75,16 +91,17 @@ function dishRow(d, grip) {
       tags.length ? h('div', { class: 'tags' }, tags) : null),
     price,
     h('div', { class: 'row-actions' },
-      h('button', { class: 'icon-btn', type: 'button', 'aria-pressed': String(d.featured), onclick: () => flag(d, { featured: !d.featured }, d.featured ? 'Quitado de las recomendaciones' : 'Agregado a las recomendaciones') }, d.featured ? '★ Recomendado' : '☆ Recomendar'),
+      S.role === 'staff' ? null : h('button', { class: 'icon-btn', type: 'button', 'aria-pressed': String(d.featured), onclick: () => flag(d, { featured: !d.featured }, d.featured ? 'Quitado de las recomendaciones' : 'Agregado a las recomendaciones') }, d.featured ? '★ Recomendado' : '☆ Recomendar'),
       h('button', { class: 'icon-btn', type: 'button', 'aria-pressed': String(d.sold_out), onclick: () => flag(d, { sold_out: !d.sold_out }, d.sold_out ? 'Platillo disponible de nuevo' : 'Marcado como agotado') }, d.sold_out ? 'Agotado ✓' : 'Agotado'),
-      h('button', { class: 'icon-btn', type: 'button', onclick: () => flag(d, { active: !d.active }, d.active ? 'Platillo oculto del menú' : 'Platillo visible en el menú') }, d.active ? 'Ocultar' : 'Mostrar'),
-      h('button', { class: 'icon-btn', type: 'button', onclick: () => openEditor(d) }, 'Editar')));
+      S.role === 'staff' ? null : h('button', { class: 'icon-btn', type: 'button', onclick: () => flag(d, { active: !d.active }, d.active ? 'Platillo oculto del menú' : 'Platillo visible en el menú') }, d.active ? 'Ocultar' : 'Mostrar'),
+      S.role === 'staff' ? null : h('button', { class: 'icon-btn', type: 'button', onclick: () => openEditor(d) }, 'Editar')));
 }
 function renderDishes() {
-  const q = norm($('q').value.trim()), fc = $('fcat').value, searching = q !== '';
+  const q = norm($('q').value.trim()), fc = $('fcat').value, searching = q !== '' || S.role === 'staff';
   const rows = S.dishes.filter(d => (!fc || d.category_id === fc) && (!q || norm(d.name + ' ' + (d.name_en || '')).includes(q)));
   const box = $('dish-list'); box.replaceChildren();
   $('drag-hint').hidden = searching || !S.dishes.length;
+  if (S.role === 'staff') $('drag-hint').hidden = true;
   if (!rows.length) {
     box.append(h('p', { class: 'empty' }, S.dishes.length ? 'Ningún platillo coincide con la búsqueda.' : 'Aún no hay platillos. Crea el primero con “Nuevo platillo”.'));
     return;
@@ -132,6 +149,13 @@ function openEditor(d) {
   form.featured.checked = d ? d.featured : false;
   form.daily.checked = d ? !!d.daily : false;
   form.sold_out.checked = d ? !!d.sold_out : false;
+  form.is_combo.checked = !!d?.is_combo; form.suggest.checked = !!d?.suggest;
+  chipBox($('avail-days'), dayItems(), d?.avail_days || []);
+  chipBox($('dayparts'), DAYPARTS.map(k => [k, DP_LABEL[k]]), d?.dayparts || []);
+  chipBox($('sale-days'), dayItems(), d?.sale_days || []);
+  form.sale_from.value = d?.sale_from || ''; form.sale_to.value = d?.sale_to || '';
+  S.opts = (d?.options || []).map(g => ({ name: g.name || '', name_en: g.name_en || '', multi: !!g.multi, required: !!g.required, text: (g.items || []).map(it => [it.name, it.price ?? 0, ...(it.name_en ? [it.name_en] : [])].join(' | ')).join('\n') }));
+  renderOpts();
   $('tag-box').replaceChildren(...Object.entries(TAG_LABELS).map(([k, label]) =>
     h('label', { class: 'tagchk' }, h('input', { type: 'checkbox', name: 'tag', value: k, checked: d?.tags?.includes(k) ? true : null }), h('span', {}, label))));
   form.querySelector('details.en').open = !!(d && (d.name_en || d.description_en));
@@ -143,6 +167,41 @@ $('new-dish').addEventListener('click', () => openEditor(null));
 $('dlg-close').addEventListener('click', () => dlg.close());
 $('dlg-cancel').addEventListener('click', () => dlg.close());
 dlg.addEventListener('close', () => S.photos.forEach(p => p.file && URL.revokeObjectURL(p.url)));
+
+function renderOpts() {
+  const box = $('opt-list'); box.replaceChildren();
+  S.opts.forEach((g, gi) => {
+    const name = h('input', { value: g.name, placeholder: 'Nombre del grupo (ej. Término de la carne)', maxlength: '60', 'aria-label': 'Nombre del grupo' });
+    name.addEventListener('input', () => { g.name = name.value; });
+    const en = h('input', { value: g.name_en, placeholder: 'Group name (EN, opcional)', maxlength: '60', 'aria-label': 'Nombre del grupo en inglés' });
+    en.addEventListener('input', () => { g.name_en = en.value; });
+    const kind = h('select', { 'aria-label': 'Tipo de elección' }, h('option', { value: 'one' }, 'Elegir una'), h('option', { value: 'many' }, 'Elegir varias'));
+    kind.value = g.multi ? 'many' : 'one'; kind.addEventListener('change', () => { g.multi = kind.value === 'many'; });
+    const req = h('input', { type: 'checkbox', checked: g.required ? true : null }); req.addEventListener('change', () => { g.required = req.checked; });
+    const ta = h('textarea', { rows: '4', placeholder: 'Medio | 0\nBien cocido | 0\nQueso extra | 1.5', 'aria-label': 'Ítems del grupo' });
+    ta.value = g.text; ta.addEventListener('input', () => { g.text = ta.value; });
+    box.append(h('div', { class: 'optg' },
+      h('div', { class: 'optg-top' }, name, en, h('button', { type: 'button', class: 'btn btn-danger-ghost', onclick: () => { S.opts.splice(gi, 1); renderOpts(); } }, 'Quitar')),
+      h('div', { class: 'optg-sw' }, kind, h('label', { class: 'tagchk' }, req, h('span', {}, 'Obligatoria'))),
+      ta));
+  });
+}
+$('opt-add-g').addEventListener('click', () => { S.opts.push({ name: '', name_en: '', multi: false, required: false, text: '' }); renderOpts(); $('opt-list').lastElementChild.querySelector('input').focus(); });
+function parseOpts() {
+  return S.opts.map(g => {
+    const name = g.name.trim();
+    const items = g.text.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+      const [n, p, e] = l.split('|').map(x => x.trim());
+      const price = Number(String(p || '0').replace('$', '').replace(',', '.'));
+      if (!n || !(price >= 0)) throw new Error(`Revisa la línea “${l}” en “${name || 'opciones'}”: usa Nombre | precio.`);
+      return { name: n, name_en: e || '', price };
+    });
+    if (!name && !items.length) return null;
+    if (!name) throw new Error('Ponle un nombre al grupo de opciones.');
+    if (!items.length) throw new Error(`El grupo “${name}” no tiene ítems.`);
+    return { name, name_en: g.name_en.trim(), multi: !!g.multi, required: !!g.required, items };
+  }).filter(Boolean);
+}
 
 function renderPhotos() {
   const grid = $('photo-grid'); grid.replaceChildren();
@@ -179,6 +238,9 @@ form.addEventListener('submit', async e => {
       price_usd: price, sale_price_usd: sale,
       tags: [...form.querySelectorAll('input[name=tag]:checked')].map(i => i.value),
       active: form.active.checked, featured: form.featured.checked, daily: form.daily.checked, sold_out: form.sold_out.checked,
+      is_combo: form.is_combo.checked, suggest: form.suggest.checked, options: parseOpts(),
+      avail_days: chipVals($('avail-days')).map(Number), dayparts: chipVals($('dayparts')),
+      sale_days: chipVals($('sale-days')).map(Number), sale_from: form.sale_from.value || '', sale_to: form.sale_to.value || '',
     };
     const savedId = await api.saveDish(dish, S.photos, S.removed);
     if (dish.daily) for (const o of S.dishes.filter(x => x.daily && x.id !== savedId)) await api.setFlag(o.id, { daily: false });
@@ -301,7 +363,7 @@ function printCards() {
 
 /* ---------- Restaurante ---------- */
 const sf = $('settings-form');
-const TEXT_FIELDS = ['name', 'tagline', 'tagline_en', 'address', 'phone', 'hours', 'hours_en', 'promo_text', 'promo_text_en', 'google_place_id', 'whatsapp', 'whatsapp_message', 'instagram', 'facebook', 'tiktok', 'x_twitter', 'youtube', 'website', 'site_url'];
+const TEXT_FIELDS = ['name', 'tagline', 'tagline_en', 'address', 'phone', 'hours', 'hours_en', 'promo_text', 'promo_text_en', 'google_place_id', 'payment_methods', 'whatsapp', 'whatsapp_message', 'instagram', 'facebook', 'tiktok', 'x_twitter', 'youtube', 'website', 'site_url'];
 function renderLogo() {
   const url = S.settings.logo_url, box = $('logo-preview');
   box.replaceChildren(url ? h('img', { src: url, alt: '' }) : h('span', { text: String(S.settings.name || 'M').trim().slice(0, 1).toUpperCase() }));
@@ -326,8 +388,52 @@ function syncRates() {
   const on = sf.rates_auto.checked;
   sf.bcv_rate.disabled = on; sf.eur_rate.disabled = on; $('fetch-rate').disabled = false;
 }
+const MODES = [['dine_in', 'Comer aquí'], ['takeaway', 'Para llevar'], ['delivery', 'A domicilio']];
+function weekRow(label, on, a, b, key) {
+  const row = h('div', { class: 'wrow' + (on ? '' : ' off'), 'data-key': key });
+  const chk = h('input', { type: 'checkbox', checked: on ? true : null, 'aria-label': `${label}: abierto` });
+  const ti = h('input', { type: 'time', value: a || '', 'aria-label': `${label}: desde` }), to = h('input', { type: 'time', value: b || '', 'aria-label': `${label}: hasta` });
+  chk.addEventListener('change', () => row.classList.toggle('off', !chk.checked));
+  row.append(h('label', { class: 'sw' }, chk, h('span', {}, label)), h('div', { class: 'times' }, ti, h('span', {}, 'a'), to));
+  return row;
+}
+function renderSchedule() {
+  const week = S.settings.hours_week || {};
+  $('hours-week').replaceChildren(...WEEK_ORDER.map(d => {
+    const r = Array.isArray(week[d]) ? week[d] : null;
+    return weekRow(['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][d], !!r, r?.[0] || '11:00', r?.[1] || '22:00', d);
+  }));
+  const dp = { ...DEFAULT_DAYPARTS, ...(S.settings.dayparts || {}) };
+  $('dayparts-cfg').replaceChildren(...DAYPARTS.map(k => {
+    const row = weekRow(DP_LABEL[k], true, dp[k][0], dp[k][1] === '24:00' ? '23:59' : dp[k][1], k);
+    row.querySelector('input[type=checkbox]').closest('label').replaceChildren(h('span', { style: 'font-weight:600' }, DP_LABEL[k]));
+    return row;
+  }));
+  chipBox($('order-modes'), MODES, String(S.settings.order_modes || 'dine_in,takeaway,delivery').split(','));
+  chipBox($('promo-days'), dayItems(), S.settings.promo_days || []);
+}
+function readSchedule() {
+  const week = {};
+  for (const row of $('hours-week').children) {
+    const on = row.querySelector('input[type=checkbox]').checked, [a, b] = [...row.querySelectorAll('input[type=time]')].map(i => i.value);
+    if (on) {
+      if (parseHM(a) == null || parseHM(b) == null || a === b) throw new Error('Revisa las horas de apertura: cada día abierto necesita hora de inicio y de cierre distintas.');
+      week[row.dataset.key] = [a, b];
+    }
+  }
+  const dayparts = {};
+  for (const row of $('dayparts-cfg').children) {
+    const [a, b] = [...row.querySelectorAll('input[type=time]')].map(i => i.value);
+    if (parseHM(a) == null || parseHM(b) == null) throw new Error('Revisa las horas de desayuno, almuerzo y cena.');
+    dayparts[row.dataset.key] = [a, b];
+  }
+  const modes = chipVals($('order-modes'));
+  if (!modes.length) throw new Error('Elige al menos un tipo de pedido.');
+  return { hours_week: week, dayparts, order_modes: modes.join(','), promo_days: chipVals($('promo-days')).map(Number) };
+}
 function renderSettings() {
-  renderLogo();
+  renderLogo(); renderSchedule();
+  sf.dayparts_on.checked = !!S.settings.dayparts_on;
   for (const k of TEXT_FIELDS) sf[k].value = S.settings[k] ?? '';
   sf.bcv_rate.value = S.settings.bcv_rate ?? '';
   sf.eur_rate.value = S.settings.eur_rate ?? '';
@@ -352,10 +458,64 @@ sf.addEventListener('submit', async e => {
   const eur = Number(sf.eur_rate.value) || 0;
   const patch = { rates_auto: sf.rates_auto.checked, bcv_rate: rate, eur_rate: eur, order_enabled: sf.order_enabled.checked, promo_active: sf.promo_active.checked };
   for (const k of TEXT_FIELDS) patch[k] = sf[k].value.trim();
+  try { Object.assign(patch, readSchedule(), { dayparts_on: sf.dayparts_on.checked }); } catch (ex) { toast(ex.message, 'err'); return; }
   if (patch.site_url && !/^https?:\/\//i.test(patch.site_url)) patch.site_url = 'https://' + patch.site_url;
   if (rate !== Number(S.settings.bcv_rate || 0) || eur !== Number(S.settings.eur_rate || 0)) patch.bcv_updated_at = new Date().toISOString();
   try { S.settings = await api.saveSettings(patch); renderSettings(); qrReady && ($('qr-url').value = defaultMenuUrl()); toast('Datos guardados'); }
   catch (ex) { toast(ex.message, 'err'); }
+});
+
+/* ---------- Equipo ---------- */
+const ROLES = { owner: 'Dueño', manager: 'Gerente', staff: 'Empleado' };
+async function loadTeam() {
+  const box = $('team-list');
+  box.replaceChildren(h('p', { class: 'muted' }, 'Cargando…'));
+  try {
+    const rows = await api.teamList();
+    box.replaceChildren(...rows.map(r => {
+      const sel = h('select', { 'aria-label': `Rol de ${r.email}` }, Object.entries(ROLES).map(([k, v]) => h('option', { value: k }, v)));
+      sel.value = r.role;
+      const me = r.email === S.me;
+      sel.disabled = me;
+      sel.addEventListener('change', async () => { try { await api.teamAdd(r.email, sel.value); toast('Rol actualizado'); } catch (ex) { toast(ex.message, 'err'); loadTeam(); } });
+      return h('div', { class: 'trow' }, h('span', { class: 'who', text: r.email + (me ? ' (tú)' : '') }), sel,
+        me ? null : h('button', { class: 'icon-btn', type: 'button', onclick: async () => {
+          if (!confirm(`¿Quitar a ${r.email} del equipo? Su usuario seguirá existiendo pero ya no podrá entrar al panel.`)) return;
+          try { await api.teamRemove(r.user_id); toast('Persona quitada'); loadTeam(); } catch (ex) { toast(ex.message, 'err'); }
+        } }, 'Quitar'));
+    }));
+  } catch (e) { box.replaceChildren(h('p', { class: 'form-err', text: `${e.message} Si es tu primera vez con esta versión, ejecuta supabase/migracion-v3.sql.` })); }
+}
+$('team-add').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target;
+  try { await api.teamAdd(f.email.value, f.role.value); f.reset(); toast('Agregado al equipo'); loadTeam(); }
+  catch (ex) { toast(ex.message, 'err'); }
+});
+
+/* ---------- Copias e impresión ---------- */
+const today = () => new Date().toISOString().slice(0, 10);
+function saveBlobFile(blob, name) { const a = h('a', { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+$('bk-json').addEventListener('click', async () => {
+  try { saveBlobFile(new Blob([JSON.stringify(await api.exportAll(), null, 1)], { type: 'application/json' }), `copia-menu-${today()}.json`); $('bk-msg').textContent = 'Copia descargada. Guárdala en un lugar seguro.'; }
+  catch (e) { toast(e.message, 'err'); }
+});
+$('bk-csv').addEventListener('click', () => {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+  const head = ['Categoría', 'Platillo', 'Precio USD', 'Oferta USD', 'Descripción', 'Etiquetas', 'Combo', 'Visible', 'Agotado'];
+  const rows = S.dishes.map(d => [catName(d.category_id), d.name, d.price_usd.toFixed(2), d.sale_price_usd == null ? '' : d.sale_price_usd.toFixed(2), d.description, (d.tags || []).map(k => TAG_LABELS[k] || k).join(', '), d.is_combo ? 'Sí' : '', d.active ? 'Sí' : 'No', d.sold_out ? 'Sí' : '']);
+  saveBlobFile(new Blob(['\ufeff' + [head, ...rows].map(r => r.map(q).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' }), `platillos-${today()}.csv`);
+  $('bk-msg').textContent = 'Archivo para Excel descargado.';
+});
+$('bk-file').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const b = JSON.parse(await f.text());
+    if (!confirm(`¿Restaurar la copia del ${String(b.at || '').slice(0, 10) || 'archivo'}? Trae ${b.dishes?.length ?? 0} platillos y ${b.categories?.length ?? 0} categorías. Se agregan o actualizan; no se borra nada.`)) return;
+    const r = await api.restoreAll(b); await loadAll();
+    $('bk-msg').textContent = `Copia restaurada: ${r.dishes} platillos y ${r.categories} categorías.`; toast('Copia restaurada');
+  } catch (ex) { toast(ex instanceof SyntaxError ? 'Ese archivo no es una copia válida.' : ex.message, 'err'); }
 });
 
 /* ---------- Categorías ---------- */

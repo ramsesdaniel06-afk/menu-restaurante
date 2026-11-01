@@ -37,6 +37,8 @@
           <button role="tab" id="tab-qr" aria-selected="false" aria-controls="v-qr">Código QR</button>
           <button role="tab" id="tab-cats" aria-selected="false" aria-controls="v-cats">Categorías</button>
           <button role="tab" id="tab-settings" aria-selected="false" aria-controls="v-settings">Restaurante</button>
+          <button role="tab" id="tab-backup" aria-selected="false" aria-controls="v-backup">Copias e impresión</button>
+          <button role="tab" id="tab-team" aria-selected="false" aria-controls="v-team">Equipo</button>
         </nav>
         <div class="adm-actions">
           <a href="index.html" target="_blank" rel="noopener">Ver menú</a>
@@ -129,11 +131,30 @@
             <p class="hint">Si lo dejas vacío, quien use el menú en inglés verá el texto en español.</p>
           </details>
 
+          <h2>Horario de atención</h2>
+          <p class="hint">Con esto el menú dice “Abierto ahora · cierra a las 10:00 pm” o “Cerrado · abrimos mañana a las 11:00 am”. Si no marcas ningún día, se usa el texto libre de arriba.</p>
+          <div id="hours-week" class="weekgrid"></div>
+
+          <h2>Menú por horario (desayuno, almuerzo y cena)</h2>
+          <div class="switches"><label class="sw"><input type="checkbox" name="dayparts_on"><span>Mostrar cada platillo solo en su franja (los que no tengan franja se ven siempre)</span></label></div>
+          <div id="dayparts-cfg" class="weekgrid"></div>
+          <p class="hint">En cada platillo eliges en qué franjas se sirve. El cliente puede tocar “Ver todo el menú” para ver lo demás.</p>
+
           <h2>Pedidos y promoción</h2>
           <div class="switches">
             <label class="sw"><input type="checkbox" name="order_enabled"><span>Permitir pedidos por WhatsApp (requiere número de WhatsApp)</span></label>
             <label class="sw"><input type="checkbox" name="promo_active"><span>Mostrar aviso de promoción arriba del menú</span></label>
           </div>
+          <p class="hint" style="margin-top:12px">Tipos de pedido que aceptas:</p>
+          <div id="order-modes" class="tagrow"></div>
+          <div class="fgrid">
+            <label class="span">Formas de pago (separadas por coma)
+              <input name="payment_methods" maxlength="160" placeholder="Pago móvil, Efectivo, Zelle, Punto de venta">
+              <span class="hint">Si lo llenas, el cliente elige una al hacer el pedido y llega en el mensaje. Vacío = no se pregunta.</span>
+            </label>
+          </div>
+          <p class="hint" style="margin-top:12px">La promoción se muestra solo estos días (sin marcar = todos los días):</p>
+          <div id="promo-days" class="tagrow"></div>
           <div class="fgrid">
             <label>Texto de la promoción<input name="promo_text" maxlength="120" placeholder="2×1 en postres los jueves"></label>
             <label>Texto de la promoción (EN)<input name="promo_text_en" maxlength="120" placeholder="2-for-1 desserts on Thursdays"></label>
@@ -201,6 +222,44 @@
           </form>
         </section>
       </section>
+
+      <!-- Copias e impresión -->
+      <section id="v-backup" role="tabpanel" aria-labelledby="tab-backup" hidden>
+        <div class="panel-card">
+          <h2>Copia de seguridad</h2>
+          <p class="hint">Guarda en tu computador todo el menú: platillos, categorías, precios, extras y datos del restaurante (las fotos quedan como enlaces). Hazlo de vez en cuando.</p>
+          <div class="logo-btns">
+            <button class="btn btn-primary" type="button" id="bk-json">Descargar copia (.json)</button>
+            <button class="btn btn-soft" type="button" id="bk-csv">Exportar platillos a Excel (.csv)</button>
+          </div>
+          <div id="bk-restore" hidden>
+            <h2 style="margin-top:22px">Restaurar desde una copia</h2>
+            <p class="hint">Agrega o actualiza lo que trae el archivo. No borra lo que ya tienes.</p>
+            <label class="btn btn-soft file-btn"><span>Elegir archivo de copia…</span><input type="file" id="bk-file" accept="application/json,.json" class="sr"></label>
+          </div>
+          <p class="hint" id="bk-msg"></p>
+        </div>
+        <div class="panel-card">
+          <h2>Menú para imprimir</h2>
+          <p class="hint">Una versión limpia del menú, en blanco y negro, lista para imprimir o guardar como PDF. Puedes elegir si lleva descripciones y precios en bolívares.</p>
+          <a class="btn btn-primary" href="imprimir.html" target="_blank" rel="noopener">Abrir menú imprimible</a>
+        </div>
+      </section>
+
+      <!-- Equipo -->
+      <section id="v-team" role="tabpanel" aria-labelledby="tab-team" hidden>
+        <div class="panel-card">
+          <h2>Equipo</h2>
+          <p class="hint"><b>Dueño:</b> todo, incluido el equipo. <b>Gerente:</b> platillos, categorías, datos y estadísticas. <b>Empleado:</b> solo marcar platillos como agotados.</p>
+          <div id="team-list" class="catlist"></div>
+          <form id="team-add" class="cat-add">
+            <input name="email" type="email" placeholder="correo@ejemplo.com" aria-label="Correo de la persona" required>
+            <select name="role" aria-label="Rol"><option value="staff">Empleado</option><option value="manager">Gerente</option><option value="owner">Dueño</option></select>
+            <button class="btn btn-soft" type="submit">Agregar al equipo</button>
+          </form>
+          <p class="hint">La persona debe tener su usuario creado antes en Supabase &gt; Authentication &gt; Users &gt; Add user (con su correo y una contraseña). Luego la agregas aquí con su rol.</p>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -236,11 +295,37 @@
         </fieldset>
 
         <div class="switches">
+          <label class="sw"><input type="checkbox" name="is_combo"><span>Es un combo (muestra la etiqueta “Combo”)</span></label>
+          <label class="sw"><input type="checkbox" name="suggest"><span>Sugerirlo al hacer el pedido (“¿Agregas algo más?”)</span></label>
           <label class="sw"><input type="checkbox" name="active"><span>Visible en el menú</span></label>
           <label class="sw"><input type="checkbox" name="featured"><span>Recomendación de la casa</span></label>
           <label class="sw"><input type="checkbox" name="daily"><span>Platillo del día</span></label>
           <label class="sw"><input type="checkbox" name="sold_out"><span>Agotado</span></label>
         </div>
+
+        <fieldset class="tagbox">
+          <legend>Extras y opciones</legend>
+          <p class="hint">Por ejemplo “Término de la carne” (elegir una, obligatoria) o “Agregar” queso (+$1.50). Un ítem por línea: <code>Nombre | precio | English (opcional)</code>. Sin precio = gratis.</p>
+          <div id="opt-list"></div>
+          <button type="button" class="btn btn-soft" id="opt-add-g">+ Agregar grupo de opciones</button>
+        </fieldset>
+
+        <fieldset class="tagbox">
+          <legend>Cuándo se sirve</legend>
+          <p class="hint">Sin marcar = todos los días y todo el día. Útil para combos de fin de semana o platillos de desayuno.</p>
+          <div class="tagrow" id="avail-days"></div>
+          <div class="tagrow" id="dayparts"></div>
+        </fieldset>
+
+        <fieldset class="tagbox">
+          <legend>Horario de la oferta (opcional)</legend>
+          <p class="hint">Solo aplica si pusiste precio de oferta. Sin marcar = la oferta rige siempre. Ej.: jueves de 2:00 pm a 5:00 pm.</p>
+          <div class="tagrow" id="sale-days"></div>
+          <div class="fgrid">
+            <label>Desde<input name="sale_from" type="time"></label>
+            <label>Hasta<input name="sale_to" type="time"></label>
+          </div>
+        </fieldset>
 
         <div class="photos-head">
           <h3>Fotos</h3>

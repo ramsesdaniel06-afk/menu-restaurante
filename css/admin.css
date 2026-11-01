@@ -184,3 +184,22 @@ details.en .fgrid { margin-top: 6px; }
 .logo-preview img { width: 100%; height: 100%; object-fit: contain; }
 .logo-actions { flex: 1 1 240px; display: flex; flex-direction: column; gap: 6px; }
 .logo-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+
+/* horarios, extras, equipo */
+.tabs { flex-wrap: wrap; }
+.weekgrid { display: grid; gap: 8px; margin: 10px 0 6px; }
+.wrow { display: grid; grid-template-columns: 130px 1fr; gap: 8px 12px; align-items: center; }
+.wrow .sw { margin: 0; }
+.wrow .times { display: flex; align-items: center; gap: 8px; }
+.wrow .times input { width: auto; flex: 1; min-width: 0; }
+.wrow.off .times { opacity: .4; }
+.optg { border: 1.5px solid var(--line); border-radius: 16px; padding: 12px; margin: 10px 0; background: var(--bg); display: grid; gap: 10px; }
+.optg-top { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.optg textarea { width: 100%; font: inherit; min-height: 84px; }
+.optg-sw { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+code { background: var(--bg); padding: 1px 6px; border-radius: 6px; font-size: .9em; }
+.trow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--bg); border-radius: 14px; margin-bottom: 8px; }
+.trow .who { flex: 1; min-width: 160px; font-weight: 600; color: var(--strong); word-break: break-all; }
+.trow select { width: auto; }
+@media (max-width: 560px) { .wrow { grid-template-columns: 1fr; } .optg-top { grid-template-columns: 1fr; } }
+#avail-days, #dayparts, #sale-days, #order-modes, #promo-days { flex-direction: row; flex-wrap: wrap; gap: 6px 14px; }
